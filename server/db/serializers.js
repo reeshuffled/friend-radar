@@ -13,7 +13,7 @@ export function friendRowToShape(row) {
     status:            row.status,
     groups:            JSON.parse(row.groups_json),
     tags:              JSON.parse(row.tags_json ?? '[]'),
-    wantAround:        ['active','too_far','skip'].includes(row.want_around) ? row.want_around : (row.want_around === 0 || row.want_around === false ? 'skip' : 'active'),
+    wantAround:        row.want_around === 'skip' ? 'skip' : 'active',
     busyUntil:         row.busy_until ?? null,
     reliability:       row.reliability,
     responsiveness:    row.responsiveness,
@@ -35,6 +35,8 @@ export function friendRowToShape(row) {
     phone:             row.phone,
     appleContactId:    row.apple_contact_id,
     preferredChannel:  row.preferred_channel,
+    rankings:          JSON.parse(row.rankings_json    ?? '{}'),
+    manualFlakes:      row.manual_flakes               ?? 0,
   };
 }
 
@@ -70,6 +72,8 @@ export function friendShapeToRow(f) {
     phone:             f.phone             ?? "",
     apple_contact_id:  f.appleContactId    ?? null,
     preferred_channel: f.preferredChannel  ?? "imessage",
+    rankings_json:     JSON.stringify(f.rankings       ?? {}),
+    manual_flakes:     f.manualFlakes      ?? 0,
     updated_at:        Date.now(),
   };
 }

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { api } from "./lib/api.js";
+import { api, capabilities } from "./lib/api/index.js";
 import { todayStr } from "./lib/helpers.js";
 import { SEED_FRIENDS, EMPTY_FRIEND } from "./lib/seed.js";
 import { PlanTab } from "./components/planning/PlanTab.jsx";
@@ -36,13 +36,17 @@ export default function App() {
         setEvents(evts);
         setActivities(acts);
 
-        // Delta-sync calendar hang dates in the background (only when Google is connected)
-        api.syncCalendarHangs().then(result => {
-          if (result?.matched > 0) applyCalendarUpdates(result.updated);
-        }).catch(() => {}); // 401 = not connected yet; swallow silently
+        // Delta-sync calendar hang dates in the background (server mode + Google connected only)
+        if (capabilities.calendar) {
+          api.syncCalendarHangs().then(result => {
+            if (result?.matched > 0) applyCalendarUpdates(result.updated);
+          }).catch(() => {}); // 401 = not connected yet; swallow silently
+        }
       } catch (err) {
-        console.error("Failed to connect to server:", err);
-        setError("Can't reach server — is it running? (npm run dev)");
+        if (capabilities.server) {
+          console.error("Failed to connect to server:", err);
+          setError("Can't reach server — is it running? (npm run dev)");
+        }
         setFriends(SEED_FRIENDS);
         setEvents([]);
       } finally {
@@ -89,6 +93,21 @@ export default function App() {
   const deleteFriend = useCallback((id) => {
     setFriends(prev => prev.filter(f => f.id !== id));
     api.deleteFriend(id).catch(console.error);
+  }, []);
+
+  // Batch-update rankings for multiple friends after a pairwise ranking session.
+  // patches: [{ id, rankings }] — merged into each friend's existing shape.
+  const batchUpdateFriends = useCallback((patches) => {
+    setFriends(prev => prev.map(f => {
+      const patch = patches.find(p => p.id === f.id);
+      return patch ? { ...f, rankings: patch.rankings } : f;
+    }));
+    patches.forEach(patch => {
+      const current = friendsRef.current.find(f => f.id === patch.id);
+      if (current) {
+        api.upsertFriend({ ...current, rankings: patch.rankings }).catch(console.error);
+      }
+    });
   }, []);
 
   const addEvent = useCallback((evt) => {
@@ -150,6 +169,11 @@ export default function App() {
         <div style={{ maxWidth: 640, margin: "0 auto" }}>
           <h1 style={{ fontSize: 22, fontWeight: 800, color: "#111827", margin: 0, letterSpacing: -0.5 }}>📡 Friend Radar</h1>
           <p style={{ fontSize: 12, color: "#9ca3af", margin: "2px 0 16px" }}>Able × Willing × Trusted</p>
+          {!capabilities.server && (
+            <div style={{ marginBottom: 12, padding: "8px 12px", background: "#fefce8", borderRadius: 10, border: "1px solid #fde68a", fontSize: 12, color: "#92400e" }}>
+              📦 Local mode — data is stored in this browser only and will be lost if you clear storage. Use <strong>Export backup</strong> regularly.
+            </div>
+          )}
           {error && (
             <div style={{ marginBottom: 12, padding: "8px 12px", background: "#fef2f2", borderRadius: 10, border: "1px solid #fecaca", fontSize: 12, color: "#b91c1c" }}>
               {error}
@@ -181,13 +205,13 @@ export default function App() {
           <EventsTab events={events} friends={friends} activities={activities} onUpdate={updateEvent} onAdvanceCascade={advanceCascade} goToPlan={() => setTab("plan")} />
         )}
         {tab === "friends" && !editing && (
-          <FriendsTab friends={friends} events={events} activities={activities} onUpdate={updateFriend} onEdit={openEditor} onDelete={deleteFriend} onCalendarSync={applyCalendarUpdates} />
+          <FriendsTab friends={friends} events={events} activities={activities} onUpdate={updateFriend} onEdit={openEditor} onDelete={deleteFriend} onCalendarSync={applyCalendarUpdates} onBatchRankUpdate={batchUpdateFriends} />
         )}
         {tab === "friends" && editing && (
-          <FriendForm initial={editing} isEditing={true} onSave={saveFriend} onCancel={closeEditor} friends={friends} activities={activities} onAddActivity={addActivity} onDeleteActivity={deleteActivity} />
+          <FriendForm initial={editing} isEditing={true} onSave={saveFriend} onCancel={closeEditor} onRankingUpdate={batchUpdateFriends} friends={friends} activities={activities} onAddActivity={addActivity} onDeleteActivity={deleteActivity} />
         )}
         {tab === "add" && (
-          <FriendForm initial={EMPTY_FRIEND} isEditing={false} onSave={saveFriend} onCancel={() => setTab(friends.length ? "friends" : "plan")} friends={friends} activities={activities} onAddActivity={addActivity} onDeleteActivity={deleteActivity} />
+          <FriendForm initial={EMPTY_FRIEND} isEditing={false} onSave={saveFriend} onCancel={() => setTab(friends.length ? "friends" : "plan")} onRankingUpdate={batchUpdateFriends} friends={friends} activities={activities} onAddActivity={addActivity} onDeleteActivity={deleteActivity} />
         )}
       </div>
     </div>

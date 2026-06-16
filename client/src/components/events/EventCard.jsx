@@ -3,7 +3,7 @@ import { LEGACY_SLOT_LABELS } from "../../lib/constants.js";
 import { todayStr, formatTime } from "../../lib/helpers.js";
 import { Pill } from "../ui/Pill.jsx";
 import { Stars } from "../ui/Stars.jsx";
-import { api } from "../../lib/api.js";
+import { api } from "../../lib/api/index.js";
 
 const RESP_META = {
   pending: { bg: "#f3f4f6", c: "#6b7280", label: "pending" },

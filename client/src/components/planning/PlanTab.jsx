@@ -1,7 +1,8 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { SOCIAL_ENERGY_COSTS, ACTIVITIES, VENUE_PROXIMITY, ACTIVITY_LOCATION_TYPE } from "../../lib/constants.js";
 import { todayStr, getEventSlot, formatTime, effectiveLastHang, daysSince, flakeStats, recencyBadge, synergyBetween } from "../../lib/helpers.js";
 import { scoreFor } from "../../lib/scoring.js";
+import { api } from "../../lib/api/index.js";
 import { Pill } from "../ui/Pill.jsx";
 import { WATBars } from "../ui/WATBars.jsx";
 import { ScoreDisplay } from "../ui/ScoreDisplay.jsx";
@@ -44,6 +45,22 @@ export function PlanTab({ friends, events, activities = [], onCreate, onAddActiv
   const [newActLabel,    setNewActLabel]    = useState("");
   const newActRef = useRef(null);
 
+  // email → { free: bool, error: string|null } — populated when Google cal is connected
+  const [calBusyMap, setCalBusyMap] = useState({});
+  useEffect(() => {
+    const emails = friends.filter(f => f.email).map(f => f.email);
+    if (!emails.length || !date || !startTime || !endTime) return;
+    const eDate  = quickMode ? todayStr() : date;
+    const eStart = quickMode
+      ? (() => { const now = new Date(); return `${String(now.getHours()).padStart(2, "0")}:${now.getMinutes() >= 30 ? "30" : "00"}`; })()
+      : startTime;
+    let cancelled = false;
+    api.checkFreeBusy(eDate, eStart, endTime, emails)
+      .then(result => { if (!cancelled) setCalBusyMap(result.friends ?? {}); })
+      .catch(() => { if (!cancelled) setCalBusyMap({}); });
+    return () => { cancelled = true; };
+  }, [date, startTime, endTime, quickMode, friends]);
+
   const effectiveDate  = quickMode ? todayStr() : date;
   const effectiveStart = quickMode
     ? (() => {
@@ -59,7 +76,9 @@ export function PlanTab({ friends, events, activities = [], onCreate, onAddActiv
   const scored = friends
     .filter(f => f.wantAround === 'active')
     .map(f => {
-      const s = { ...f, ...scoreFor(f, actId, slot, events, plusOneAllowed, effectiveDate, activities, venueProx) };
+      const calEntry = f.email ? calBusyMap[f.email] : undefined;
+      const calBusy  = calEntry && !calEntry.error ? !calEntry.free : null;
+      const s = { ...f, ...scoreFor(f, actId, slot, events, plusOneAllowed, effectiveDate, activities, venueProx, calBusy), calBusy };
       const ds = daysSince(effectiveLastHang(f, events));
       if (goal === "reconnect") {
         const base = ds === null ? 15 : ds >= 90 ? 12 : ds >= 60 ? 8 : ds >= 30 ? 4 : 0;
@@ -604,7 +623,8 @@ export function PlanTab({ friends, events, activities = [], onCreate, onAddActiv
                     <span style={{ fontWeight: 700, fontSize: 13, color: "#111827" }}>{f.name}</span>
                     {f.groups?.[0] && <Pill text={f.groups[0]} bg="#f0f9ff" c="#0369a1" />}
                     {cascade && isInCascade && <Pill text={queuePos === 1 ? "Invite first" : `Queue #${queuePos}`} bg={queuePos === 1 ? "#dcfce7" : "#eef2ff"} c={queuePos === 1 ? "#15803d" : "#4338ca"} />}
-                    {!f.slotMatch && f.availSlots?.length > 0 && <Pill text="May not be free" bg="#fff7ed" c="#c2410c" />}
+                    {f.calBusy === true && <Pill text="Busy (cal)" bg="#fff7ed" c="#c2410c" />}
+                    {!f.slotMatch && f.availSlots?.length > 0 && f.calBusy == null && <Pill text="May not be free" bg="#fff7ed" c="#c2410c" />}
                     {f.distanceTier === "far" && <Pill text="Far" bg="#fff7ed" c="#c2410c" />}
                     {badge && <Pill text={badge.text} bg={badge.bg} c={badge.c} />}
                     {f.isBusyThisWeek && <Pill text="Busy" bg="#f3f4f6" c="#9ca3af" />}

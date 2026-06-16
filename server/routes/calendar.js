@@ -8,14 +8,15 @@ import {
 
 const router = Router();
 
-// GET /api/calendar/freebusy?date=YYYY-MM-DD&startTime=HH:MM&endTime=HH:MM
+// GET /api/calendar/freebusy?date=YYYY-MM-DD&startTime=HH:MM&endTime=HH:MM&friendEmails=a@b.com,c@d.com
 router.get("/freebusy", async (req, res) => {
-  const { date, startTime, endTime } = req.query;
+  const { date, startTime, endTime, friendEmails } = req.query;
   if (!date || !startTime || !endTime) {
     return res.status(400).json({ error: "date, startTime, endTime are required" });
   }
+  const emails = friendEmails ? friendEmails.split(",").filter(Boolean) : [];
   try {
-    const result = await checkFreeBusy(date, startTime, endTime);
+    const result = await checkFreeBusy(date, startTime, endTime, emails);
     res.json(result);
   } catch (err) {
     console.error("freebusy error:", err);
@@ -51,9 +52,10 @@ async function syncHangs(syncToken, includeAudit = false) {
     } else throw err;
   }
 
-  const best           = {};
-  const matchedEvents  = [];
+  const best            = {};
+  const matchedEvents   = [];
   const unmatchedEvents = [];
+  const reviewEvents    = [];
 
   for (const event of calEvents) {
     if (event.status === "cancelled") continue;
@@ -83,6 +85,8 @@ async function syncHangs(syncToken, includeAudit = false) {
         const fuzzy = fuzzyMatchFriends(text, friends);
         if (others.length > 0 || fuzzy.length > 0) {
           unmatchedEvents.push({ title, date: dateStr, attendeeCount: others.length, fuzzyMatches: fuzzy });
+        } else if (title) {
+          reviewEvents.push({ title, date: dateStr });
         }
       }
     }
@@ -103,6 +107,7 @@ async function syncHangs(syncToken, includeAudit = false) {
     matched:         updates.length,
     matchedEvents:   matchedEvents.sort(byDateDesc).slice(0, 200),
     unmatchedEvents: unmatchedEvents.sort(byDateDesc).slice(0, 200),
+    reviewEvents:    reviewEvents.sort(byDateDesc).slice(0, 200),
   };
 }
 

@@ -17,11 +17,9 @@
     "format": "prettier --write server/ tests/ client/src/"
   },
   "dependencies": {
-    "cors": "^2.8.5",
     "dotenv": "^16.4.5",
     "express": "^4.19.2",
-    "googleapis": "^173.0.0",
-    "nodemailer": "^9.0.0"
+    "googleapis": "^173.0.0"
   },
   "devDependencies": {
     "@eslint/js": "^9.0.0",

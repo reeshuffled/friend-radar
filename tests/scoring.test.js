@@ -140,6 +140,65 @@ describe("scoreFor — notice preference", () => {
   });
 });
 
+describe("scoreFor — ranking integration (attrNorm)", () => {
+  it("back-compat: friend with no rankings/manualFlakes scores within 1pt of legacy baseline", () => {
+    // Ensure adding rankings:{} and manualFlakes:0 doesn't change scores
+    const withDefaults = { ...baseFriend, rankings: {}, manualFlakes: 0 };
+    const withoutFields = { ...baseFriend };
+    const r1 = scoreFor(withDefaults, "board-games", slot, events);
+    const r2 = scoreFor(withoutFields, "board-games", slot, events);
+    expect(Math.abs(r1.score - r2.score)).toBeLessThanOrEqual(1);
+    expect(Math.abs(r1.trust - r2.trust)).toBeLessThanOrEqual(1);
+  });
+
+  it("rankings.reliability = 10 raises trust vs legacy reliability = 3", () => {
+    const ranked   = { ...baseFriend, rankings: { reliability: 10.0 }, responsiveness: 3 };
+    const legacy   = { ...baseFriend, reliability: 3, rankings: {} };
+    expect(scoreFor(ranked, "board-games", slot, events).trust)
+      .toBeGreaterThan(scoreFor(legacy, "board-games", slot, events).trust);
+  });
+
+  it("rankings.reliability = 2.0 (floor) scores lower trust than legacy reliability = 3", () => {
+    const ranked = { ...baseFriend, rankings: { reliability: 2.0 }, rankings_vibe: undefined };
+    const legacy = { ...baseFriend, reliability: 3, rankings: {} };
+    expect(scoreFor(ranked, "board-games", slot, events).trust)
+      .toBeLessThan(scoreFor(legacy, "board-games", slot, events).trust);
+  });
+});
+
+describe("scoreFor — flake counter", () => {
+  it("manualFlakes > 0 lowers trust monotonically", () => {
+    const zero   = { ...baseFriend, rankings: {}, manualFlakes: 0 };
+    const one    = { ...baseFriend, rankings: {}, manualFlakes: 1 };
+    const three  = { ...baseFriend, rankings: {}, manualFlakes: 3 };
+    const t0 = scoreFor(zero,  "board-games", slot, events).trust;
+    const t1 = scoreFor(one,   "board-games", slot, events).trust;
+    const t3 = scoreFor(three, "board-games", slot, events).trust;
+    expect(t0).toBeGreaterThan(t1);
+    expect(t1).toBeGreaterThan(t3);
+  });
+
+  it("flake penalty floors at 0.3 regardless of how many flakes", () => {
+    const many = { ...baseFriend, rankings: {}, manualFlakes: 100 };
+    const r = scoreFor(many, "board-games", slot, events);
+    expect(r.flakePenalty).toBe(0.3);
+  });
+
+  it("negative manualFlakes forgives event-derived flakes (effective count clamped to 0)", () => {
+    // No event history → derivedFlakes = 0; negative delta → effectiveFlakes = 0, no penalty
+    const forgiven = { ...baseFriend, rankings: {}, manualFlakes: -5 };
+    const r = scoreFor(forgiven, "board-games", slot, events);
+    expect(r.effectiveFlakes).toBe(0);
+    expect(r.flakePenalty).toBe(1.0);
+  });
+
+  it("returns effectiveFlakes and flakePenalty in result", () => {
+    const r = scoreFor({ ...baseFriend, rankings: {}, manualFlakes: 2 }, "board-games", slot, events);
+    expect(r.effectiveFlakes).toBe(2);
+    expect(r.flakePenalty).toBeCloseTo(0.76, 2);
+  });
+});
+
 describe("scoreFor — recency nudge", () => {
   it("overdue friend gets positive nudge", () => {
     const overdueFriend = { ...baseFriend, targetFreqDays: 14, lastHangDate: "2024-01-01" };

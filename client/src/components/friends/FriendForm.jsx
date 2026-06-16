@@ -2,6 +2,9 @@ import { useState } from "react";
 import { AVAIL_SLOTS, DIST_TIERS, COMFORT_LEVELS, NOTICE_PREFS, STATUSES, FREQ_OPTS } from "../../lib/constants.js";
 import { EMPTY_FRIEND } from "../../lib/seed.js";
 import { RangeSlider } from "../ui/RangeSlider.jsx";
+import { Stars } from "../ui/Stars.jsx";
+import { RANKED_ATTRS, rankedOrder, reRank, startComparisonSession, buildRankingWrites } from "../../lib/ranking.js";
+import { RankSession } from "./RankSession.jsx";
 
 const LOCATION_PREFS = [
   { id: "home",   label: "Prefers home",  desc: "Would rather hang at someone's place" },
@@ -49,12 +52,13 @@ function FriendPicker({ allFriends, selfId, selected, onChange, accentColor, bgC
   );
 }
 
-export function FriendForm({ initial, isEditing, onSave, onCancel, friends = [], activities = [], onAddActivity, onDeleteActivity }) {
+export function FriendForm({ initial, isEditing, onSave, onCancel, onRankingUpdate, friends = [], activities = [], onAddActivity, onDeleteActivity }) {
   const [f, setF]         = useState({ ...EMPTY_FRIEND, ...initial });
   const [newGroup,    setNewGroup]    = useState("");
   const [newTag,      setNewTag]      = useState("");
   const [addingAct,   setAddingAct]   = useState(false);
   const [newActLabel, setNewActLabel] = useState("");
+  const [rankingAttr, setRankingAttr] = useState(null); // null = closed, "reliability" = open
   const set    = (k, v) => setF(p => ({ ...p, [k]: v }));
   const setInt = (id, v) => setF(p => ({ ...p, interests: { ...p.interests, [id]: v } }));
   const toggleArr = (key, val) => setF(p => {
@@ -221,9 +225,8 @@ export function FriendForm({ initial, isEditing, onSave, onCancel, friends = [],
           <span style={{ fontSize: 12, fontWeight: 600, color: "#6b7280", display: "block", marginBottom: 5 }}>Status</span>
           <div style={{ display: "flex", gap: 5 }}>
             {[
-              { value: "active",  label: "Active ✓",          bg: "#dcfce7", color: "#15803d" },
-              { value: "too_far", label: "Lives too far",      bg: "#fef3c7", color: "#b45309" },
-              { value: "skip",    label: "Set as inactive priority",      bg: "#fee2e2", color: "#b91c1c" },
+              { value: "active",  label: "Active ✓",               bg: "#dcfce7", color: "#15803d" },
+              { value: "skip",    label: "Set as inactive priority", bg: "#fee2e2", color: "#b91c1c" },
             ].map(({ value, label, bg, color }) => {
               const sel = (f.wantAround ?? 'active') === value;
               return (
@@ -239,12 +242,92 @@ export function FriendForm({ initial, isEditing, onSave, onCancel, friends = [],
 
       <div style={card}>
         <span style={sL}>About them — used until event history builds</span>
-        <RangeSlider label="Shows up when they say yes?" value={f.reliability} onChange={v => set("reliability", v)} />
+
+        {/* Reliability: ranked via Beli pairwise (or legacy slider for unsaved friends) */}
+        <div style={{ marginBottom: 14 }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
+            <span style={{ fontSize: 12, fontWeight: 600, color: "#374151" }}>Shows up when they say yes?</span>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              {f.rankings?.reliability != null ? (
+                <>
+                  <Stars value={Math.round(f.rankings.reliability / 2)} size={14} />
+                  <span style={{ fontSize: 11, fontWeight: 700, color: "#4f46e5" }}>{f.rankings.reliability.toFixed(1)}/10</span>
+                </>
+              ) : (
+                <span style={{ fontSize: 11, color: "#9ca3af" }}>
+                  {f.id ? "not ranked" : `${f.reliability ?? 3}/5`}
+                </span>
+              )}
+              {f.id ? (
+                <button
+                  onClick={() => setRankingAttr("reliability")}
+                  style={{ padding: "3px 10px", borderRadius: 8, border: "none", fontSize: 11, fontWeight: 700, cursor: "pointer", background: "#eff6ff", color: "#1d4ed8" }}
+                >
+                  {f.rankings?.reliability != null ? "Re-rank" : "Rank"}
+                </button>
+              ) : null}
+            </div>
+          </div>
+          {/* Fallback slider for unsaved friend */}
+          {!f.id && (
+            <RangeSlider value={f.reliability} onChange={v => set("reliability", v)} />
+          )}
+          {f.id && f.rankings?.reliability == null && (
+            <div style={{ fontSize: 11, color: "#9ca3af", fontStyle: "italic" }}>
+              Click "Rank" to place this friend in a pairwise ranking instead of guessing a number.
+            </div>
+          )}
+        </div>
+
+        {/* Flake override counter */}
+        <div style={{ marginBottom: 14, padding: "10px 12px", borderRadius: 10, background: "#fef9ee", border: "1px solid #fed7aa" }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+            <div>
+              <span style={{ fontSize: 12, fontWeight: 700, color: "#92400e" }}>Manual reliability penalty</span>
+              <div style={{ fontSize: 11, color: "#b45309", marginTop: 1 }}>−12% Trust per flake, floored at 30%. Use for flakes not logged as events.</div>
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <button onClick={() => set("manualFlakes", (f.manualFlakes ?? 0) - 1)}
+                style={{ width: 26, height: 26, borderRadius: 8, border: "1px solid #d97706", background: "#fff7ed", color: "#92400e", fontWeight: 700, fontSize: 14, cursor: "pointer", lineHeight: 1 }}>−</button>
+              <span style={{ minWidth: 24, textAlign: "center", fontSize: 14, fontWeight: 800, color: (f.manualFlakes ?? 0) > 0 ? "#b91c1c" : (f.manualFlakes ?? 0) < 0 ? "#059669" : "#9ca3af" }}>
+                {(f.manualFlakes ?? 0) > 0 ? `+${f.manualFlakes}` : (f.manualFlakes ?? 0)}
+              </span>
+              <button onClick={() => set("manualFlakes", (f.manualFlakes ?? 0) + 1)}
+                style={{ width: 26, height: 26, borderRadius: 8, border: "1px solid #d97706", background: "#fff7ed", color: "#92400e", fontWeight: 700, fontSize: 14, cursor: "pointer", lineHeight: 1 }}>+</button>
+            </div>
+          </div>
+        </div>
+
         <RangeSlider label="Texts back reliably?" value={f.responsiveness} onChange={v => set("responsiveness", v)} />
         <RangeSlider label="Easy to reach out to?" value={f.vibe} onChange={v => set("vibe", v)} />
         <RangeSlider label="Down to hang with your other friends?" value={f.openness} onChange={v => set("openness", v)} />
         <RangeSlider label="Generally has bandwidth?" value={f.logistics} onChange={v => set("logistics", v)} />
       </div>
+
+      {/* Rank session modal */}
+      {rankingAttr && f.id && (
+        <RankSession
+          orderedIds={
+            // If re-ranking, strip this friend from the current order; if new to ranking, use full order
+            f.rankings?.[rankingAttr] != null
+              ? rankedOrder(friends, rankingAttr).filter(id => id !== f.id)
+              : rankedOrder(friends, rankingAttr)
+          }
+          newId={f.id}
+          prompt={RANKED_ATTRS.find(a => a.key === rankingAttr)?.prompt ?? rankingAttr}
+          friends={friends}
+          onComplete={(finalOrder) => {
+            setRankingAttr(null);
+            // Update the current friend's ranking in form state
+            const writes = buildRankingWrites(friends, rankingAttr, finalOrder);
+            const myPatch = writes.find(w => w.id === f.id);
+            if (myPatch) setF(prev => ({ ...prev, rankings: myPatch.rankings }));
+            // Batch-persist rankings for all affected friends (including this one)
+            if (onRankingUpdate) onRankingUpdate(writes);
+          }}
+          onCancel={() => setRankingAttr(null)}
+        />
+      )}
 
       <div style={card}>
         <span style={sL}>What are they into?</span>

@@ -104,26 +104,34 @@ export async function fetchCalendarEvents(syncToken = null) {
   return { events: allItems, nextSyncToken };
 }
 
-export async function checkFreeBusy(dateStr, startTime, endTime) {
+export async function checkFreeBusy(dateStr, startTime, endTime, friendEmails = []) {
   const client = await getAuthorizedClient();
   const auth   = getAuth();
 
   const timeMin = new Date(`${dateStr}T${startTime}:00`).toISOString();
   const timeMax = new Date(`${dateStr}T${endTime}:00`).toISOString();
 
-  const cal = google.calendar({ version: "v3", auth: client });
-  const { data } = await cal.freebusy.query({
-    requestBody: {
-      timeMin,
-      timeMax,
-      items: [{ id: auth.gcal_id }],
-    },
-  });
+  const cal   = google.calendar({ version: "v3", auth: client });
+  const items = [{ id: auth.gcal_id }, ...friendEmails.map(e => ({ id: e }))];
+  const { data } = await cal.freebusy.query({ requestBody: { timeMin, timeMax, items } });
 
   const busy = data.calendars?.[auth.gcal_id]?.busy ?? [];
+
+  const friends = {};
+  for (const email of friendEmails) {
+    const fb = data.calendars?.[email];
+    if (fb) {
+      friends[email] = {
+        free:  (fb.busy ?? []).length === 0,
+        error: fb.errors?.[0]?.reason ?? null,
+      };
+    }
+  }
+
   return {
     free:      busy.length === 0,
     conflicts: busy.map(b => ({ start: b.start, end: b.end })),
+    friends,
   };
 }
 

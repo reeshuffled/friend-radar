@@ -1,6 +1,5 @@
 import "dotenv/config";
 import express from "express";
-import cors from "cors";
 import path from "path";
 import { fileURLToPath } from "url";
 import { mkdirSync } from "fs";
@@ -19,7 +18,6 @@ import activitiesRoutes from "./routes/activities.js";
 const app  = express();
 const PORT = process.env.PORT ?? 3001;
 
-app.use(cors({ origin: process.env.CLIENT_ORIGIN ?? "*", credentials: true }));
 app.use(express.json({ limit: "5mb" }));
 
 app.use("/api/auth",       authRoutes);

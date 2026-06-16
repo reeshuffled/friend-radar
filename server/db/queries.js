@@ -31,14 +31,14 @@ export function upsertFriend(friend) {
       interests_json, avail_slots_json, target_freq_days, notice_preference,
       distance_tier, social_type, work_drain, comfort_level, last_hang_date,
       home_location, conflicts_json, synergies_json, phone, apple_contact_id,
-      preferred_channel, updated_at
+      preferred_channel, rankings_json, manual_flakes, updated_at
     ) VALUES (
       @id, @name, @email, @contact, @notes, @status, @groups_json, @tags_json, @want_around,
       @busy_until, @reliability, @responsiveness, @vibe, @openness, @logistics,
       @interests_json, @avail_slots_json, @target_freq_days, @notice_preference,
       @distance_tier, @social_type, @work_drain, @comfort_level, @last_hang_date,
       @home_location, @conflicts_json, @synergies_json, @phone, @apple_contact_id,
-      @preferred_channel, @updated_at
+      @preferred_channel, @rankings_json, @manual_flakes, @updated_at
     ) ON CONFLICT(id) DO UPDATE SET
       name = excluded.name, email = excluded.email, contact = excluded.contact,
       notes = excluded.notes, status = excluded.status, groups_json = excluded.groups_json,
@@ -53,7 +53,9 @@ export function upsertFriend(friend) {
       last_hang_date = excluded.last_hang_date, home_location = excluded.home_location,
       conflicts_json = excluded.conflicts_json, synergies_json = excluded.synergies_json,
       phone = excluded.phone, apple_contact_id = excluded.apple_contact_id,
-      preferred_channel = excluded.preferred_channel, updated_at = excluded.updated_at
+      preferred_channel = excluded.preferred_channel,
+      rankings_json = excluded.rankings_json, manual_flakes = excluded.manual_flakes,
+      updated_at = excluded.updated_at
   `).run(row);
 }
 
@@ -265,14 +267,14 @@ export function bulkUpsertFriends(friends) {
       interests_json, avail_slots_json, target_freq_days, notice_preference,
       distance_tier, social_type, work_drain, comfort_level, last_hang_date,
       home_location, conflicts_json, synergies_json, phone, apple_contact_id,
-      preferred_channel, updated_at
+      preferred_channel, rankings_json, manual_flakes, updated_at
     ) VALUES (
       @id, @name, @email, @contact, @notes, @status, @groups_json, @tags_json, @want_around,
       @busy_until, @reliability, @responsiveness, @vibe, @openness, @logistics,
       @interests_json, @avail_slots_json, @target_freq_days, @notice_preference,
       @distance_tier, @social_type, @work_drain, @comfort_level, @last_hang_date,
       @home_location, @conflicts_json, @synergies_json, @phone, @apple_contact_id,
-      @preferred_channel, @updated_at
+      @preferred_channel, @rankings_json, @manual_flakes, @updated_at
     ) ON CONFLICT(id) DO UPDATE SET
       name = excluded.name, email = excluded.email, contact = excluded.contact,
       notes = excluded.notes, status = excluded.status, groups_json = excluded.groups_json,
@@ -289,6 +291,7 @@ export function bulkUpsertFriends(friends) {
       conflicts_json = excluded.conflicts_json, synergies_json = excluded.synergies_json,
       phone = excluded.phone, apple_contact_id = excluded.apple_contact_id,
       preferred_channel = excluded.preferred_channel,
+      rankings_json = excluded.rankings_json, manual_flakes = excluded.manual_flakes,
       updated_at = excluded.updated_at
     WHERE excluded.updated_at >= friends.updated_at
   `);

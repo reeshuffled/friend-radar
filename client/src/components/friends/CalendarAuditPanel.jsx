@@ -9,8 +9,10 @@ const chip = (label, bg, color, border) => ({
 export function CalendarAuditPanel({ audit, friends, onConfirmHang, onClose }) {
   const matchedCount   = audit.matchedEvents?.length   ?? 0;
   const unmatchedCount = audit.unmatchedEvents?.length ?? 0;
+  const reviewCount    = audit.reviewEvents?.length    ?? 0;
 
-  const [tab,       setTab]       = useState(unmatchedCount > 0 ? "unmatched" : "matched");
+  const defaultTab = unmatchedCount > 0 ? "unmatched" : matchedCount > 0 ? "matched" : reviewCount > 0 ? "review" : "matched";
+  const [tab,       setTab]       = useState(defaultTab);
   const [confirmed, setConfirmed] = useState({});  // key → [friendId, ...]
   const [dismissed, setDismissed] = useState({});  // key → Set<friendId>
 
@@ -33,7 +35,7 @@ export function CalendarAuditPanel({ audit, friends, onConfirmHang, onClose }) {
   };
 
   const handleTagSelect = async (e, date, key) => {
-    const friendId = e.target.value;
+    const friendId = Number(e.target.value);
     if (!friendId) return;
     e.target.value = "";
     await handleConfirm(friendId, date, key);
@@ -59,6 +61,7 @@ export function CalendarAuditPanel({ audit, friends, onConfirmHang, onClose }) {
         <div style={{ display: "flex", gap: 5, alignItems: "center" }}>
           {tabBtn("matched",   "Matched",   matchedCount)}
           {tabBtn("unmatched", "Unmatched", unmatchedCount)}
+          {tabBtn("review",    "Review",    reviewCount)}
           <button onClick={onClose} style={{ marginLeft: 4, background: "none", border: "none", cursor: "pointer", color: "#9ca3af", fontSize: 15, lineHeight: 1, padding: "0 2px" }}>✕</button>
         </div>
       </div>
@@ -101,7 +104,6 @@ export function CalendarAuditPanel({ audit, friends, onConfirmHang, onClose }) {
 
                 return (
                   <div key={key} style={{ padding: "8px 14px", borderBottom: "1px solid #f9fafb" }}>
-                    {/* Event header */}
                     <div style={{ fontSize: 11, color: "#9ca3af", marginBottom: 4 }}>
                       {ev.date}
                       {ev.title && <span style={{ color: "#374151", fontWeight: 500 }}> · {ev.title}</span>}
@@ -111,13 +113,11 @@ export function CalendarAuditPanel({ audit, friends, onConfirmHang, onClose }) {
                     </div>
 
                     <div style={{ display: "flex", flexWrap: "wrap", gap: 5, alignItems: "center" }}>
-                      {/* Already-confirmed */}
                       {conf.map(id => {
                         const f = byId(id);
                         return f && <span key={id} style={chip(f.name, "#dcfce7", "#15803d")}>✓ {f.name}</span>;
                       })}
 
-                      {/* Fuzzy suggestions */}
                       {fuzzy.map(id => {
                         const f = byId(id);
                         return f && (
@@ -137,7 +137,6 @@ export function CalendarAuditPanel({ audit, friends, onConfirmHang, onClose }) {
                         );
                       })}
 
-                      {/* Manual picker */}
                       <select
                         defaultValue=""
                         onChange={e => handleTagSelect(e, ev.date, key)}
@@ -150,6 +149,48 @@ export function CalendarAuditPanel({ audit, friends, onConfirmHang, onClose }) {
                   </div>
                 );
               })
+        )}
+
+        {tab === "review" && (
+          reviewCount === 0
+            ? <p style={{ margin: 0, padding: "12px 14px", fontSize: 12, color: "#9ca3af" }}>No events to review.</p>
+            : <>
+                <p style={{ margin: 0, padding: "8px 14px 0", fontSize: 11, color: "#9ca3af" }}>
+                  These events had no attendee data. Tag any where you hung out with a friend.
+                </p>
+                {audit.reviewEvents.map(ev => {
+                  const key    = eKey(ev);
+                  const conf   = confirmed[key] ?? [];
+                  const picker = friends
+                    .filter(f => (f.wantAround ?? "active") === "active" && !conf.includes(f.id))
+                    .sort((a, b) => a.name.localeCompare(b.name));
+
+                  return (
+                    <div key={key} style={{ padding: "8px 14px", borderBottom: "1px solid #f9fafb" }}>
+                      <div style={{ fontSize: 11, color: "#9ca3af", marginBottom: 4 }}>
+                        {ev.date}
+                        {ev.title && <span style={{ color: "#374151", fontWeight: 500 }}> · {ev.title}</span>}
+                      </div>
+
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: 5, alignItems: "center" }}>
+                        {conf.map(id => {
+                          const f = byId(id);
+                          return f && <span key={id} style={chip(f.name, "#dcfce7", "#15803d")}>✓ {f.name}</span>;
+                        })}
+
+                        <select
+                          defaultValue=""
+                          onChange={e => handleTagSelect(e, ev.date, key)}
+                          style={{ fontSize: 11, padding: "3px 6px", borderRadius: 6, border: "1px solid #e5e7eb", color: "#6b7280", background: "#f9fafb", cursor: "pointer" }}
+                        >
+                          <option value="" disabled>+ Tag friend</option>
+                          {picker.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
+                        </select>
+                      </div>
+                    </div>
+                  );
+                })}
+              </>
         )}
       </div>
     </div>

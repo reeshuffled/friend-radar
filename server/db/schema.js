@@ -35,7 +35,7 @@ export function applySchema(db) {
       notes             TEXT NOT NULL DEFAULT '',
       status            TEXT NOT NULL DEFAULT 'Friend',
       groups_json       TEXT NOT NULL DEFAULT '[]',    -- string[]
-      want_around       TEXT NOT NULL DEFAULT 'active', -- 'active' | 'too_far' | 'skip'
+      want_around       TEXT NOT NULL DEFAULT 'active', -- 'active' | 'skip'
       busy_until        TEXT,                           -- ISO date; null = not busy
 
       -- Propensity sliders (1–5)
@@ -65,6 +65,10 @@ export function applySchema(db) {
       phone             TEXT NOT NULL DEFAULT '',
       apple_contact_id  TEXT,
       preferred_channel TEXT NOT NULL DEFAULT 'imessage',  -- email|gcal|imessage|manual
+
+      -- Beli-style rankings & flake override
+      rankings_json     TEXT NOT NULL DEFAULT '{}',  -- Record<attr, 0.0-10.0>
+      manual_flakes     INTEGER NOT NULL DEFAULT 0,  -- signed delta on top of event-derived flake count
 
       -- Legacy / override
       last_hang_date    TEXT,     -- ISO date, manual override
@@ -132,6 +136,8 @@ export function applySchema(db) {
 
   // Add tags column if it doesn't exist yet
   try { db.exec(`ALTER TABLE friends ADD COLUMN tags_json TEXT NOT NULL DEFAULT '[]'`); } catch {}
+  try { db.exec(`ALTER TABLE friends ADD COLUMN rankings_json TEXT NOT NULL DEFAULT '{}'`); } catch {}
+  try { db.exec(`ALTER TABLE friends ADD COLUMN manual_flakes INTEGER NOT NULL DEFAULT 0`); } catch {}
   try { db.exec(`ALTER TABLE events ADD COLUMN message TEXT NOT NULL DEFAULT ''`); } catch {}
   try { db.exec(`ALTER TABLE friends ADD COLUMN busy_until TEXT`); } catch {}
   try { db.exec(`ALTER TABLE auth ADD COLUMN cal_sync_token TEXT`); } catch {}

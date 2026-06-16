@@ -1,14 +1,20 @@
 import { VENUE_DIST_MULTS, SOCIAL_ENERGY_COSTS, NOTICE_PREFS, ACTIVITY_LOCATION_TYPE } from './constants.js';
 import { flakeStats, effectiveLastHang, daysSince } from './helpers.js';
 
-export function scoreFor(friend, actId, eventSlot, events, allowsPlusOne = false, eventDate = null, activities = [], venueProximity = "mine") {
+// 0–1 normalized value for an attribute; prefers ranking rating (0–10), falls back to legacy 1–5 slider.
+function attrNorm(friend, attr, legacyDefault = 3) {
+  const r = friend.rankings?.[attr];
+  return typeof r === "number" ? r / 10 : (friend[attr] ?? legacyDefault) / 5;
+}
+
+export function scoreFor(friend, actId, eventSlot, events, allowsPlusOne = false, eventDate = null, activities = [], venueProximity = "mine", calBusy = null) {
   const actMap     = Object.fromEntries(activities.map(a => [a.id, a]));
   const st = flakeStats(friend.id, events);
   const lh = effectiveLastHang(friend, events);
 
   // WILLING (0–10): interest × openness × vibe
   const interest = friend.interests?.[actId] ?? 1;
-  let willing = interest / 5 * 5 + (friend.openness ?? 3) / 5 * 2.5 + (friend.vibe ?? 3) / 5 * 2.5;
+  let willing = interest / 5 * 5 + attrNorm(friend, "openness") * 2.5 + attrNorm(friend, "vibe") * 2.5;
 
   // +1 comfort modifier
   const comfortLvl = friend.comfortLevel ?? "solo";
@@ -37,11 +43,12 @@ export function scoreFor(friend, actId, eventSlot, events, allowsPlusOne = false
   willing = Math.min(10, willing * plusBoost * energyMod * locationMod);
 
   // ABLE (0–10): schedule match × logistics × distance
+  // calBusy overrides the manual availSlots check when real calendar data is available
   const hasAvail  = friend.availSlots?.length > 0;
-  const slotMatch = !hasAvail || friend.availSlots.includes(eventSlot);
+  const slotMatch = calBusy !== null ? !calBusy : (!hasAvail || friend.availSlots.includes(eventSlot));
   const multTable = VENUE_DIST_MULTS[venueProximity] ?? VENUE_DIST_MULTS.mine;
   const distMult  = multTable[friend.distanceTier ?? "nearby"] ?? 0.85;
-  let able        = (slotMatch ? 1.0 : 0.3) * ((friend.logistics ?? 3) / 5) * distMult * 10;
+  let able        = (slotMatch ? 1.0 : 0.3) * attrNorm(friend, "logistics") * distMult * 10;
 
   // Notice modifier
   if (eventDate) {
@@ -63,8 +70,14 @@ export function scoreFor(friend, actId, eventSlot, events, allowsPlusOne = false
       trust = trust * 0.8 + velocityBonus * 10 * 0.2;
     }
   } else {
-    trust = (friend.reliability ?? 3) / 5 * 6 + (friend.responsiveness ?? 3) / 5 * 4;
+    trust = attrNorm(friend, "reliability") * 6 + attrNorm(friend, "responsiveness") * 4;
   }
+
+  // Flake penalty: event-derived flakes + signed manual adjustment → bounded Trust reduction
+  const derivedFlakes   = st?.flaked ?? 0;
+  const effectiveFlakes = Math.max(0, derivedFlakes + (friend.manualFlakes ?? 0));
+  const flakePenalty    = Math.max(0.3, 1 - 0.12 * effectiveFlakes);
+  trust *= flakePenalty;
 
   let raw = willing * 0.40 + able * 0.35 + trust * 0.25;
 
@@ -96,6 +109,7 @@ export function scoreFor(friend, actId, eventSlot, events, allowsPlusOne = false
     slotMatch, distMult, plusBoost, comfortLvl,
     battery: Math.round(battery * 100), energyMod, locationMod,
     inCooldown, daysUntilDue, isBusyThisWeek,
+    effectiveFlakes, flakePenalty,
   };
 }
 
