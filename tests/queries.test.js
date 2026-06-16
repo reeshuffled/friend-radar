@@ -31,7 +31,7 @@ const alice = {
   notes: "",
   status: "Friend",
   groups: [],
-  wantAround: 'active',
+  wantAround: "active",
   busyUntil: null,
   reliability: 3,
   responsiveness: 3,
@@ -72,7 +72,16 @@ const boardGamesEvent = {
   createdAt: "2025-06-14",
   legs: null,
   invites: [
-    { friendId: "f1", response: "pending", showed: null, inviteStatus: "invited", queuePosition: 1, inviteSentAt: null, inviteChannel: "email", attendingLegs: null },
+    {
+      friendId: "f1",
+      response: "pending",
+      showed: null,
+      inviteStatus: "invited",
+      queuePosition: 1,
+      inviteSentAt: null,
+      inviteChannel: "email",
+      attendingLegs: null,
+    },
   ],
 };
 
@@ -90,7 +99,7 @@ describe("friends queries", () => {
     expect(fetched.email).toBe("alice@example.com");
     expect(fetched.interests).toEqual({ "board-games": 5 });
     expect(fetched.availSlots).toEqual(["weekend-evening"]);
-    expect(fetched.wantAround).toBe('active');
+    expect(fetched.wantAround).toBe("active");
     expect(fetched.busyUntil).toBe(null);
   });
 
@@ -210,10 +219,11 @@ describe("events queries", () => {
   it("createEvent persists legs correctly", () => {
     const legs = [
       { id: "leg-1", label: "Pre-drinks", startTime: "18:00", endTime: "19:30", location: "" },
-      { id: "leg-2", label: "Main",       startTime: "19:30", endTime: "22:00", location: "" },
+      { id: "leg-2", label: "Main", startTime: "19:30", endTime: "22:00", location: "" },
     ];
     const eventWithLegs = {
-      ...boardGamesEvent, id: "e-legs",
+      ...boardGamesEvent,
+      id: "e-legs",
       legs,
       invites: [{ ...boardGamesEvent.invites[0], attendingLegs: ["leg-2"] }],
     };
@@ -233,9 +243,12 @@ describe("getActiveCascadeEvents", () => {
 
   it("returns only non-finalized cascade events", () => {
     const cascadeEvent = { ...boardGamesEvent, id: "e-cascade", cascade: true };
-    const normalEvent  = { ...boardGamesEvent, id: "e-normal",  cascade: false };
+    const normalEvent = { ...boardGamesEvent, id: "e-normal", cascade: false };
     const finalizedCascade = {
-      ...boardGamesEvent, id: "e-finalized", cascade: true, finalized: true,
+      ...boardGamesEvent,
+      id: "e-finalized",
+      cascade: true,
+      finalized: true,
       invites: [{ ...boardGamesEvent.invites[0] }],
     };
 

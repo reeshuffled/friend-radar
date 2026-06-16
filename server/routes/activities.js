@@ -10,7 +10,11 @@ router.get("/", (req, res) => {
 router.post("/", (req, res) => {
   const { label, energyCost, locationType, sortOrder } = req.body;
   if (!label?.trim()) return res.status(400).json({ error: "label required" });
-  const id = label.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+  const id = label
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "");
   const activity = upsertActivity({ id, label: label.trim(), energyCost, locationType, sortOrder });
   res.status(201).json(activity);
 });

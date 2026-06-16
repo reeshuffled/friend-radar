@@ -13,8 +13,13 @@ import {
 // ── daysSince ────────────────────────────────────────────────────────────────
 
 describe("daysSince", () => {
-  beforeEach(() => { vi.useFakeTimers(); vi.setSystemTime(new Date("2026-06-15T15:00:00Z")); });
-  afterEach(() => { vi.useRealTimers(); });
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-06-15T15:00:00Z"));
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
 
   it("returns null for null input", () => {
     expect(daysSince(null)).toBe(null);
@@ -105,7 +110,7 @@ describe("flakeStats", () => {
   it("computes flake rate from finalized events", () => {
     const events = [
       makeEvent(true, [makeInvite("f1", "yes", "invited", false)]), // said yes, didn't show
-      makeEvent(true, [makeInvite("f1", "yes", "invited", true)]),  // said yes, showed
+      makeEvent(true, [makeInvite("f1", "yes", "invited", true)]), // said yes, showed
     ];
     const stats = flakeStats("f1", events);
     expect(stats.flakeRate).toBe(0.5);
@@ -218,7 +223,7 @@ describe("synergyBetween", () => {
     id,
     finalized,
     rating,
-    invites: friendIds.map(fid => ({ friendId: fid, showed: true })),
+    invites: friendIds.map((fid) => ({ friendId: fid, showed: true })),
   });
 
   it("returns null when no co-attended events", () => {
@@ -240,23 +245,24 @@ describe("synergyBetween", () => {
   });
 
   it("returns averaged score from rated co-attended events", () => {
-    const events = [
-      makeCoEvent("e1", ["f1", "f2"], 4),
-      makeCoEvent("e2", ["f1", "f2"], 5),
-    ];
+    const events = [makeCoEvent("e1", ["f1", "f2"], 4), makeCoEvent("e2", ["f1", "f2"], 5)];
     const result = synergyBetween("f1", "f2", events);
     expect(result.score).toBe(4.5);
     expect(result.count).toBe(2);
   });
 
   it("ignores showed=false invites", () => {
-    const events = [{
-      id: "e1", finalized: true, rating: 5,
-      invites: [
-        { friendId: "f1", showed: true },
-        { friendId: "f2", showed: false },
-      ],
-    }];
+    const events = [
+      {
+        id: "e1",
+        finalized: true,
+        rating: 5,
+        invites: [
+          { friendId: "f1", showed: true },
+          { friendId: "f2", showed: false },
+        ],
+      },
+    ];
     expect(synergyBetween("f1", "f2", events)).toBe(null);
   });
 });

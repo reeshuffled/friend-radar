@@ -15,7 +15,7 @@ import {
 
 describe("RANKED_ATTRS", () => {
   it("includes reliability", () => {
-    expect(RANKED_ATTRS.some(a => a.key === "reliability")).toBe(true);
+    expect(RANKED_ATTRS.some((a) => a.key === "reliability")).toBe(true);
   });
   it("each entry has key and prompt", () => {
     for (const a of RANKED_ATTRS) {
@@ -156,7 +156,12 @@ describe("comparison count = ⌈log₂(N+1)⌉", () => {
     return count;
   }
 
-  for (const [n, expected] of [[1, 1], [3, 2], [7, 3], [15, 4]]) {
+  for (const [n, expected] of [
+    [1, 1],
+    [3, 2],
+    [7, 3],
+    [15, 4],
+  ]) {
     it(`N=${n} → ${expected} comparison(s)`, () => {
       expect(countComparisons(n)).toBe(expected);
     });
@@ -271,7 +276,7 @@ describe("buildRankingWrites", () => {
     // Drag c to top
     const newOrder = ["c", "a", "b"];
     const writes = buildRankingWrites(friends, "reliability", newOrder);
-    const byId = Object.fromEntries(writes.map(w => [w.id, w.rankings.reliability]));
+    const byId = Object.fromEntries(writes.map((w) => [w.id, w.rankings.reliability]));
     expect(byId.c).toBe(10.0);
     expect(byId.a).toBe(6.0);
     expect(byId.b).toBe(2.0);

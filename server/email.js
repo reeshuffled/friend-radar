@@ -8,20 +8,28 @@ function formatTime(t) {
 
 function formatDate(dateStr) {
   return new Date(dateStr + "T12:00:00").toLocaleDateString("en-US", {
-    weekday: "long", month: "long", day: "numeric",
+    weekday: "long",
+    month: "long",
+    day: "numeric",
   });
 }
 
-export async function sendInviteEmail({ event, friendName, friendEmail }) {
-  const dateStr  = formatDate(event.date);
-  const timeStr  = `${formatTime(event.startTime)}${event.endTime ? ` – ${formatTime(event.endTime)}` : ""}`;
-  const locLine  = event.location ? `<br><strong>Where:</strong> ${event.location}` : "";
-  const firstLine = event.message.split(/\n/)[0].replace(/^hey[\s\w,!]*/i, "").trim();
-  const subject  = firstLine.length > 8 ? firstLine : `Hanging out ${new Date(event.date + "T12:00:00").toLocaleDateString("en-US", { weekday: "long" })}?`;
+export async function sendInviteEmail({ event, friendName: _friendName, friendEmail }) {
+  const dateStr = formatDate(event.date);
+  const timeStr = `${formatTime(event.startTime)}${event.endTime ? ` – ${formatTime(event.endTime)}` : ""}`;
+  const locLine = event.location ? `<br><strong>Where:</strong> ${event.location}` : "";
+  const firstLine = event.message
+    .split(/\n/)[0]
+    .replace(/^hey[\s\w,!]*/i, "")
+    .trim();
+  const subject =
+    firstLine.length > 8
+      ? firstLine
+      : `Hanging out ${new Date(event.date + "T12:00:00").toLocaleDateString("en-US", { weekday: "long" })}?`;
 
   const messageHtml = event.message
     .split(/\n/)
-    .map(l => `<p style="font-size:16px;line-height:1.6;margin:0 0 10px">${l}</p>`)
+    .map((l) => `<p style="font-size:16px;line-height:1.6;margin:0 0 10px">${l}</p>`)
     .join("");
 
   const html = `

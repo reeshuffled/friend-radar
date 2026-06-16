@@ -3,7 +3,7 @@ import path from "path";
 import { fileURLToPath } from "url";
 import { applySchema } from "./schema.js";
 
-const __dirname      = path.dirname(fileURLToPath(import.meta.url));
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DEFAULT_DB_PATH = path.join(__dirname, "../../data/friend-radar.db");
 
 let _db;

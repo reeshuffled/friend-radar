@@ -13,7 +13,7 @@ router.get("/google", (req, res) => {
 router.get("/google/callback", async (req, res) => {
   const { code, error } = req.query;
   if (error) return res.status(400).send(`OAuth error: ${error}`);
-  if (!code)  return res.status(400).send("No code returned.");
+  if (!code) return res.status(400).send("No code returned.");
 
   try {
     const email = await exchangeCode(code);

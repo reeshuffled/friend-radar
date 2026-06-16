@@ -21,19 +21,19 @@ async function req(url, opts = {}) {
 }
 
 export const serverApi = {
-  getFriends:      ()         => req("/friends"),
-  upsertFriend:    (f)        => req(`/friends/${f.id}`, { method: "PUT", body: f }),
-  deleteFriend:    (id)       => req(`/friends/${id}`, { method: "DELETE" }),
+  getFriends: () => req("/friends"),
+  upsertFriend: (f) => req(`/friends/${f.id}`, { method: "PUT", body: f }),
+  deleteFriend: (id) => req(`/friends/${id}`, { method: "DELETE" }),
 
-  getEvents:       ()         => req("/events"),
-  createEvent:     (event)    => req("/events", { method: "POST", body: event }),
-  updateEvent:     (id, data) => req(`/events/${id}`, { method: "PUT", body: data }),
-  advanceCascade:  (id)       => req(`/events/${id}/advance`, { method: "POST" }),
+  getEvents: () => req("/events"),
+  createEvent: (event) => req("/events", { method: "POST", body: event }),
+  updateEvent: (id, data) => req(`/events/${id}`, { method: "PUT", body: data }),
+  advanceCascade: (id) => req(`/events/${id}/advance`, { method: "POST" }),
 
-  getActivities:   ()         => req("/activities"),
-  createActivity:  (act)      => req("/activities", { method: "POST", body: act }),
-  updateActivity:  (act)      => req(`/activities/${act.id}`, { method: "PUT", body: act }),
-  deleteActivity:  (id)       => req(`/activities/${id}`, { method: "DELETE" }),
+  getActivities: () => req("/activities"),
+  createActivity: (act) => req("/activities", { method: "POST", body: act }),
+  updateActivity: (act) => req(`/activities/${act.id}`, { method: "PUT", body: act }),
+  deleteActivity: (id) => req(`/activities/${id}`, { method: "DELETE" }),
 
   checkFreeBusy: (date, startTime, endTime, friendEmails = []) => {
     const params = new URLSearchParams({ date, startTime, endTime });
@@ -41,12 +41,18 @@ export const serverApi = {
     return req(`/calendar/freebusy?${params}`);
   },
 
-  syncAppleContacts:          ()                                   => req("/friends/sync-apple-contacts", { method: "POST" }),
-  syncCalendarHangs:          ()                                   => req("/calendar/sync-hangs"),
-  importCalendarHangs:        ()                                   => req("/calendar/sync-hangs", { method: "POST" }),
-  confirmCalendarHang:        (friendId, date)                     => req("/calendar/manual-hang", { method: "POST", body: { friendId, date } }),
-  recordResponse:             (eventId, friendId, response)        => req(`/events/${eventId}/invites/${friendId}/response`, { method: "PATCH", body: { response } }),
-  updateInviteAttendingLegs:  (eventId, friendId, attendingLegs)  => req(`/events/${eventId}/invites/${friendId}/attending-legs`, { method: "PATCH", body: { attendingLegs } }),
+  syncAppleContacts: () => req("/friends/sync-apple-contacts", { method: "POST" }),
+  syncCalendarHangs: () => req("/calendar/sync-hangs"),
+  importCalendarHangs: () => req("/calendar/sync-hangs", { method: "POST" }),
+  confirmCalendarHang: (friendId, date) =>
+    req("/calendar/manual-hang", { method: "POST", body: { friendId, date } }),
+  recordResponse: (eventId, friendId, response) =>
+    req(`/events/${eventId}/invites/${friendId}/response`, { method: "PATCH", body: { response } }),
+  updateInviteAttendingLegs: (eventId, friendId, attendingLegs) =>
+    req(`/events/${eventId}/invites/${friendId}/attending-legs`, {
+      method: "PATCH",
+      body: { attendingLegs },
+    }),
 
   // Data portability (server mode version — calls the /sync endpoint for export)
   exportData: async () => {
@@ -55,6 +61,8 @@ export const serverApi = {
   },
   // No-op import in server mode (use the /sync endpoint directly)
   importData: async () => {
-    throw Object.assign(new Error("Use the server sync endpoint to import data in server mode"), { noServer: false });
+    throw Object.assign(new Error("Use the server sync endpoint to import data in server mode"), {
+      noServer: false,
+    });
   },
 };

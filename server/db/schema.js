@@ -135,13 +135,27 @@ export function applySchema(db) {
   `);
 
   // Add tags column if it doesn't exist yet
-  try { db.exec(`ALTER TABLE friends ADD COLUMN tags_json TEXT NOT NULL DEFAULT '[]'`); } catch {}
-  try { db.exec(`ALTER TABLE friends ADD COLUMN rankings_json TEXT NOT NULL DEFAULT '{}'`); } catch {}
-  try { db.exec(`ALTER TABLE friends ADD COLUMN manual_flakes INTEGER NOT NULL DEFAULT 0`); } catch {}
-  try { db.exec(`ALTER TABLE events ADD COLUMN message TEXT NOT NULL DEFAULT ''`); } catch {}
-  try { db.exec(`ALTER TABLE friends ADD COLUMN busy_until TEXT`); } catch {}
-  try { db.exec(`ALTER TABLE auth ADD COLUMN cal_sync_token TEXT`); } catch {}
-  try { db.exec(`ALTER TABLE events ADD COLUMN venue_proximity TEXT NOT NULL DEFAULT 'mine'`); } catch {}
+  try {
+    db.exec(`ALTER TABLE friends ADD COLUMN tags_json TEXT NOT NULL DEFAULT '[]'`);
+  } catch {}
+  try {
+    db.exec(`ALTER TABLE friends ADD COLUMN rankings_json TEXT NOT NULL DEFAULT '{}'`);
+  } catch {}
+  try {
+    db.exec(`ALTER TABLE friends ADD COLUMN manual_flakes INTEGER NOT NULL DEFAULT 0`);
+  } catch {}
+  try {
+    db.exec(`ALTER TABLE events ADD COLUMN message TEXT NOT NULL DEFAULT ''`);
+  } catch {}
+  try {
+    db.exec(`ALTER TABLE friends ADD COLUMN busy_until TEXT`);
+  } catch {}
+  try {
+    db.exec(`ALTER TABLE auth ADD COLUMN cal_sync_token TEXT`);
+  } catch {}
+  try {
+    db.exec(`ALTER TABLE events ADD COLUMN venue_proximity TEXT NOT NULL DEFAULT 'mine'`);
+  } catch {}
 
   // Seed built-in activities if table is empty
   const actCount = db.prepare("SELECT COUNT(*) as n FROM activities").get();
@@ -150,20 +164,56 @@ export function applySchema(db) {
       "INSERT INTO activities (id, label, energy_cost, location_type, sort_order, is_builtin) VALUES (@id, @label, @energyCost, @locationType, @sortOrder, 1)"
     );
     const DEFAULTS = [
-      { id: "board-games", label: "Board games",      energyCost: 0.35, locationType: "home",   sortOrder: 1  },
-      { id: "movies",      label: "Movies",            energyCost: 0.20, locationType: "home",   sortOrder: 2  },
-      { id: "bars-drinks", label: "Bars / drinks",     energyCost: 0.55, locationType: "out",    sortOrder: 3  },
-      { id: "hiking",      label: "Hiking",            energyCost: 0.40, locationType: "either", sortOrder: 4  },
-      { id: "concerts",    label: "Concerts / shows",  energyCost: 0.50, locationType: "out",    sortOrder: 5  },
-      { id: "food",        label: "Food / restaurant", energyCost: 0.30, locationType: "out",    sortOrder: 6  },
-      { id: "house-party", label: "House party",       energyCost: 0.80, locationType: "home",   sortOrder: 7  },
-      { id: "sports",      label: "Sports",            energyCost: 0.45, locationType: "either", sortOrder: 8  },
-      { id: "coffee",      label: "Coffee",            energyCost: 0.15, locationType: "out",    sortOrder: 9  },
-      { id: "just-hang",   label: "Just a hang",       energyCost: 0.30, locationType: "either", sortOrder: 10 },
+      {
+        id: "board-games",
+        label: "Board games",
+        energyCost: 0.35,
+        locationType: "home",
+        sortOrder: 1,
+      },
+      { id: "movies", label: "Movies", energyCost: 0.2, locationType: "home", sortOrder: 2 },
+      {
+        id: "bars-drinks",
+        label: "Bars / drinks",
+        energyCost: 0.55,
+        locationType: "out",
+        sortOrder: 3,
+      },
+      { id: "hiking", label: "Hiking", energyCost: 0.4, locationType: "either", sortOrder: 4 },
+      {
+        id: "concerts",
+        label: "Concerts / shows",
+        energyCost: 0.5,
+        locationType: "out",
+        sortOrder: 5,
+      },
+      {
+        id: "food",
+        label: "Food / restaurant",
+        energyCost: 0.3,
+        locationType: "out",
+        sortOrder: 6,
+      },
+      {
+        id: "house-party",
+        label: "House party",
+        energyCost: 0.8,
+        locationType: "home",
+        sortOrder: 7,
+      },
+      { id: "sports", label: "Sports", energyCost: 0.45, locationType: "either", sortOrder: 8 },
+      { id: "coffee", label: "Coffee", energyCost: 0.15, locationType: "out", sortOrder: 9 },
+      {
+        id: "just-hang",
+        label: "Just a hang",
+        energyCost: 0.3,
+        locationType: "either",
+        sortOrder: 10,
+      },
     ];
     db.exec("BEGIN");
     try {
-      DEFAULTS.forEach(a => stmt.run(a));
+      DEFAULTS.forEach((a) => stmt.run(a));
       db.exec("COMMIT");
     } catch (e) {
       db.exec("ROLLBACK");

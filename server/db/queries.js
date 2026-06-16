@@ -2,18 +2,23 @@
 
 import { getDb } from "./db.js";
 import {
-  friendShapeToRow, friendRowToShape,
-  eventShapeToRow, eventRowToShape,
-  inviteShapeToRow, inviteRowToShape,
+  friendShapeToRow,
+  friendRowToShape,
+  eventShapeToRow,
+  eventRowToShape,
+  inviteShapeToRow,
 } from "./serializers.js";
 
 // node:sqlite returns null-prototype objects; spread into a plain object for serializer compat.
-const plain = row => row ? Object.assign({}, row) : null;
+const plain = (row) => (row ? Object.assign({}, row) : null);
 
 // ── Friends ───────────────────────────────────────────────────────────────────
 
 export function getAllFriends() {
-  return getDb().prepare("SELECT * FROM friends ORDER BY name").all().map(r => friendRowToShape(plain(r)));
+  return getDb()
+    .prepare("SELECT * FROM friends ORDER BY name")
+    .all()
+    .map((r) => friendRowToShape(plain(r)));
 }
 
 export function getFriend(id) {
@@ -22,9 +27,10 @@ export function getFriend(id) {
 }
 
 export function upsertFriend(friend) {
-  const db  = getDb();
+  const db = getDb();
   const row = friendShapeToRow(friend);
-  db.prepare(`
+  db.prepare(
+    `
     INSERT INTO friends (
       id, name, email, contact, notes, status, groups_json, tags_json, want_around,
       busy_until, reliability, responsiveness, vibe, openness, logistics,
@@ -56,7 +62,8 @@ export function upsertFriend(friend) {
       preferred_channel = excluded.preferred_channel,
       rankings_json = excluded.rankings_json, manual_flakes = excluded.manual_flakes,
       updated_at = excluded.updated_at
-  `).run(row);
+  `
+  ).run(row);
 }
 
 export function deleteFriend(id) {
@@ -66,35 +73,43 @@ export function deleteFriend(id) {
 // ── Events + Invites ──────────────────────────────────────────────────────────
 
 function loadInvites(db, eventId) {
-  return db.prepare("SELECT * FROM invites WHERE event_id = ? ORDER BY queue_position")
-    .all(eventId).map(r => plain(r));
+  return db
+    .prepare("SELECT * FROM invites WHERE event_id = ? ORDER BY queue_position")
+    .all(eventId)
+    .map((r) => plain(r));
 }
 
 export function getAllEvents() {
   const db = getDb();
-  return db.prepare("SELECT * FROM events ORDER BY date DESC").all().map(r => {
-    const row = plain(r);
-    return eventRowToShape(row, loadInvites(db, row.id));
-  });
+  return db
+    .prepare("SELECT * FROM events ORDER BY date DESC")
+    .all()
+    .map((r) => {
+      const row = plain(r);
+      return eventRowToShape(row, loadInvites(db, row.id));
+    });
 }
 
 export function getEvent(id) {
-  const db  = getDb();
+  const db = getDb();
   const row = plain(db.prepare("SELECT * FROM events WHERE id = ?").get(id));
   return row ? eventRowToShape(row, loadInvites(db, id)) : null;
 }
 
 export function getActiveCascadeEvents() {
   const db = getDb();
-  return db.prepare("SELECT * FROM events WHERE finalized = 0 AND cascade = 1").all().map(r => {
-    const row = plain(r);
-    return eventRowToShape(row, loadInvites(db, row.id));
-  });
+  return db
+    .prepare("SELECT * FROM events WHERE finalized = 0 AND cascade = 1")
+    .all()
+    .map((r) => {
+      const row = plain(r);
+      return eventRowToShape(row, loadInvites(db, row.id));
+    });
 }
 
 export function createEvent(event) {
-  const db      = getDb();
-  const row     = eventShapeToRow(event);
+  const db = getDb();
+  const row = eventShapeToRow(event);
   const invites = event.invites ?? [];
 
   const insertEventStmt = db.prepare(`
@@ -131,49 +146,64 @@ export function createEvent(event) {
 }
 
 export function updateEventFields(id, fields) {
-  const db   = getDb();
-  const cols = Object.keys(fields).map(k => `${k} = @${k}`).join(", ");
+  const db = getDb();
+  const cols = Object.keys(fields)
+    .map((k) => `${k} = @${k}`)
+    .join(", ");
   db.prepare(`UPDATE events SET ${cols} WHERE id = @id`).run({ ...fields, id });
 }
 
 export function updateInviteResponse(eventId, friendId, response) {
-  getDb().prepare(
-    "UPDATE invites SET response = ? WHERE event_id = ? AND friend_id = ?"
-  ).run(response, eventId, friendId);
+  getDb()
+    .prepare("UPDATE invites SET response = ? WHERE event_id = ? AND friend_id = ?")
+    .run(response, eventId, friendId);
 }
 
 export function updateInviteStatus(eventId, friendId, status, sentAt = null) {
-  getDb().prepare(
-    "UPDATE invites SET invite_status = ?, invite_sent_at = ? WHERE event_id = ? AND friend_id = ?"
-  ).run(status, sentAt, eventId, friendId);
+  getDb()
+    .prepare(
+      "UPDATE invites SET invite_status = ?, invite_sent_at = ? WHERE event_id = ? AND friend_id = ?"
+    )
+    .run(status, sentAt, eventId, friendId);
 }
 
 export function updateInviteShowed(eventId, friendId, showed) {
-  getDb().prepare(
-    "UPDATE invites SET showed = ? WHERE event_id = ? AND friend_id = ?"
-  ).run(showed === null ? null : (showed ? 1 : 0), eventId, friendId);
+  getDb()
+    .prepare("UPDATE invites SET showed = ? WHERE event_id = ? AND friend_id = ?")
+    .run(showed === null ? null : showed ? 1 : 0, eventId, friendId);
 }
 
 // ── Activities ────────────────────────────────────────────────────────────────
 
 function actRowToShape(row) {
   return {
-    id:           row.id,
-    label:        row.label,
-    energyCost:   row.energy_cost,
+    id: row.id,
+    label: row.label,
+    energyCost: row.energy_cost,
     locationType: row.location_type,
-    sortOrder:    row.sort_order,
-    isBuiltin:    row.is_builtin === 1,
+    sortOrder: row.sort_order,
+    isBuiltin: row.is_builtin === 1,
   };
 }
 
 export function getAllActivities() {
-  return getDb().prepare("SELECT * FROM activities ORDER BY sort_order, label").all()
-    .map(r => actRowToShape(plain(r)));
+  return getDb()
+    .prepare("SELECT * FROM activities ORDER BY sort_order, label")
+    .all()
+    .map((r) => actRowToShape(plain(r)));
 }
 
-export function upsertActivity({ id, label, energyCost = 0.35, locationType = "either", sortOrder = 99, isBuiltin = false }) {
-  getDb().prepare(`
+export function upsertActivity({
+  id,
+  label,
+  energyCost = 0.35,
+  locationType = "either",
+  sortOrder = 99,
+  isBuiltin = false,
+}) {
+  getDb()
+    .prepare(
+      `
     INSERT INTO activities (id, label, energy_cost, location_type, sort_order, is_builtin)
     VALUES (@id, @label, @energyCost, @locationType, @sortOrder, @isBuiltin)
     ON CONFLICT(id) DO UPDATE SET
@@ -181,8 +211,10 @@ export function upsertActivity({ id, label, energyCost = 0.35, locationType = "e
       energy_cost = excluded.energy_cost,
       location_type = excluded.location_type,
       sort_order = excluded.sort_order
-  `).run({ id, label, energyCost, locationType, sortOrder, isBuiltin: isBuiltin ? 1 : 0 });
-  return getAllActivities().find(a => a.id === id);
+  `
+    )
+    .run({ id, label, energyCost, locationType, sortOrder, isBuiltin: isBuiltin ? 1 : 0 });
+  return getAllActivities().find((a) => a.id === id);
 }
 
 export function deleteActivity(id) {
@@ -196,7 +228,9 @@ export function getAuth() {
 }
 
 export function saveAuth({ accessToken, refreshToken, tokenExpiry, gmailAddress, gcalId }) {
-  getDb().prepare(`
+  getDb()
+    .prepare(
+      `
     INSERT INTO auth (user_id, access_token, refresh_token, token_expiry, gmail_address, gcal_id)
     VALUES (1, @accessToken, @refreshToken, @tokenExpiry, @gmailAddress, @gcalId)
     ON CONFLICT(user_id) DO UPDATE SET
@@ -205,7 +239,9 @@ export function saveAuth({ accessToken, refreshToken, tokenExpiry, gmailAddress,
       token_expiry  = excluded.token_expiry,
       gmail_address = excluded.gmail_address,
       gcal_id       = excluded.gcal_id
-  `).run({ accessToken, refreshToken, tokenExpiry, gmailAddress, gcalId });
+  `
+    )
+    .run({ accessToken, refreshToken, tokenExpiry, gmailAddress, gcalId });
 }
 
 // ── Calendar hang sync ────────────────────────────────────────────────────────
@@ -230,13 +266,13 @@ export function saveCalSyncToken(token) {
 }
 
 export function bulkUpdateLastHangDate(updates) {
-  const db   = getDb();
+  const db = getDb();
   const stmt = db.prepare(
     "UPDATE friends SET last_hang_date = @date WHERE id = @friendId AND (last_hang_date IS NULL OR last_hang_date < @date)"
   );
   db.exec("BEGIN");
   try {
-    updates.forEach(u => stmt.run(u));
+    updates.forEach((u) => stmt.run(u));
     db.exec("COMMIT");
   } catch (e) {
     db.exec("ROLLBACK");
@@ -247,7 +283,9 @@ export function bulkUpdateLastHangDate(updates) {
 export function getFriendLastHangDatesByIds(ids) {
   if (!ids.length) return {};
   const placeholders = ids.map(() => "?").join(",");
-  const rows = getDb().prepare(`SELECT id, last_hang_date FROM friends WHERE id IN (${placeholders})`).all(...ids);
+  const rows = getDb()
+    .prepare(`SELECT id, last_hang_date FROM friends WHERE id IN (${placeholders})`)
+    .all(...ids);
   const result = {};
   for (const r of rows) {
     const row = plain(r);
@@ -259,7 +297,7 @@ export function getFriendLastHangDatesByIds(ids) {
 // ── Bulk sync (React app → server on first connect) ───────────────────────────
 
 export function bulkUpsertFriends(friends) {
-  const db   = getDb();
+  const db = getDb();
   const stmt = db.prepare(`
     INSERT INTO friends (
       id, name, email, contact, notes, status, groups_json, tags_json, want_around,
@@ -298,7 +336,7 @@ export function bulkUpsertFriends(friends) {
 
   db.exec("BEGIN");
   try {
-    friends.forEach(f => stmt.run(friendShapeToRow(f)));
+    friends.forEach((f) => stmt.run(friendShapeToRow(f)));
     db.exec("COMMIT");
   } catch (e) {
     db.exec("ROLLBACK");

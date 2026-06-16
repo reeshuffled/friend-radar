@@ -61,8 +61,8 @@ async function deleteFriend(id) {
   const events = await db.getAll("events");
   const tx = db.transaction("events", "readwrite");
   for (const ev of events) {
-    if (ev.invites?.some(i => i.friendId === id)) {
-      tx.store.put({ ...ev, invites: ev.invites.filter(i => i.friendId !== id) });
+    if (ev.invites?.some((i) => i.friendId === id)) {
+      tx.store.put({ ...ev, invites: ev.invites.filter((i) => i.friendId !== id) });
     }
   }
   await tx.done;
@@ -93,7 +93,7 @@ async function createEvent(event) {
 async function updateEvent(id, data) {
   const db = await getLocalDb();
   const existing = (await db.get("events", id)) ?? { id };
-  const updated  = { ...existing, ...data, id };
+  const updated = { ...existing, ...data, id };
   await db.put("events", updated);
   return updated;
 }
@@ -102,11 +102,11 @@ async function advanceCascade(id) {
   const db = await getLocalDb();
   const ev = await db.get("events", id);
   if (!ev) return {};
-  const nextQueued = ev.invites?.find(i => i.inviteStatus === "queued");
+  const nextQueued = ev.invites?.find((i) => i.inviteStatus === "queued");
   if (!nextQueued) return { event: ev };
   const updated = {
     ...ev,
-    invites: ev.invites.map(i =>
+    invites: ev.invites.map((i) =>
       i.friendId === nextQueued.friendId
         ? { ...i, inviteStatus: "invited", inviteSentAt: Date.now() }
         : i
@@ -122,9 +122,7 @@ async function recordResponse(eventId, friendId, response) {
   if (!ev) return {};
   const updated = {
     ...ev,
-    invites: ev.invites.map(i =>
-      i.friendId === friendId ? { ...i, response } : i
-    ),
+    invites: ev.invites.map((i) => (i.friendId === friendId ? { ...i, response } : i)),
   };
   await db.put("events", updated);
   return updated;
@@ -136,9 +134,7 @@ async function updateInviteAttendingLegs(eventId, friendId, attendingLegs) {
   if (!ev) return {};
   const updated = {
     ...ev,
-    invites: ev.invites.map(i =>
-      i.friendId === friendId ? { ...i, attendingLegs } : i
-    ),
+    invites: ev.invites.map((i) => (i.friendId === friendId ? { ...i, attendingLegs } : i)),
   };
   await db.put("events", updated);
   return updated;
@@ -153,17 +149,17 @@ async function getActivities() {
 }
 
 async function createActivity({ label }) {
-  const db  = await getLocalDb();
+  const db = await getLocalDb();
   const all = await db.getAll("activities");
-  const id  = slugify(label);
+  const id = slugify(label);
   const maxSort = all.reduce((m, a) => Math.max(m, a.sortOrder ?? 0), 0);
   const act = {
     id,
     label,
-    energyCost:   0.35,
+    energyCost: 0.35,
     locationType: "either",
-    sortOrder:    maxSort + 1,
-    isBuiltin:    false,
+    sortOrder: maxSort + 1,
+    isBuiltin: false,
   };
   await db.put("activities", act);
   return act;
@@ -190,10 +186,14 @@ async function deleteActivity(id) {
 // ─── calendar hang (pure CRUD — works locally) ────────────────────────────
 
 async function confirmCalendarHang(friendId, date) {
-  const db  = await getLocalDb();
-  const f   = await db.get("friends", friendId);
+  const db = await getLocalDb();
+  const f = await db.get("friends", friendId);
   if (!f) throw new Error(`Friend ${friendId} not found`);
-  const updated = { ...f, lastHangDate: advanceHangDate(f.lastHangDate, date), updatedAt: Date.now() };
+  const updated = {
+    ...f,
+    lastHangDate: advanceHangDate(f.lastHangDate, date),
+    updatedAt: Date.now(),
+  };
   await db.put("friends", updated);
   return updated;
 }
@@ -215,9 +215,9 @@ async function importData(json) {
   const db = await getLocalDb();
   const tx = db.transaction(["friends", "events", "activities"], "readwrite");
 
-  for (const f of json.friends ?? [])     tx.objectStore("friends").put(f);
-  for (const e of json.events ?? [])      tx.objectStore("events").put(e);
-  for (const a of json.activities ?? [])  tx.objectStore("activities").put(a);
+  for (const f of json.friends ?? []) tx.objectStore("friends").put(f);
+  for (const e of json.events ?? []) tx.objectStore("events").put(e);
+  for (const a of json.activities ?? []) tx.objectStore("activities").put(a);
 
   // Always ensure built-ins exist after import
   for (const builtin of BUILTIN_ACTIVITIES) {
@@ -259,8 +259,8 @@ export const localApi = {
   importData,
 
   // Server-only — throw NoServerError so callers can swallow or gate
-  checkFreeBusy:       noServer("Google Calendar freebusy"),
-  syncAppleContacts:   noServer("Apple Contacts sync"),
-  syncCalendarHangs:   noServer("Google Calendar hang sync"),
+  checkFreeBusy: noServer("Google Calendar freebusy"),
+  syncAppleContacts: noServer("Apple Contacts sync"),
+  syncCalendarHangs: noServer("Google Calendar hang sync"),
   importCalendarHangs: noServer("Google Calendar hang import"),
 };

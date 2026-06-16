@@ -6,13 +6,9 @@
  * server-side seed in server/db/schema.js.
  */
 import { openDB } from "idb";
-import {
-  ACTIVITIES,
-  SOCIAL_ENERGY_COSTS,
-  ACTIVITY_LOCATION_TYPE,
-} from "../constants.js";
+import { ACTIVITIES, SOCIAL_ENERGY_COSTS, ACTIVITY_LOCATION_TYPE } from "../constants.js";
 
-const DB_NAME    = "friend-radar";
+const DB_NAME = "friend-radar";
 const DB_VERSION = 1;
 
 let _db = null;
@@ -37,12 +33,12 @@ export async function getLocalDb() {
 
 /** Built-in activities derived from constants.js — mirrors server/db/schema.js seed. */
 export const BUILTIN_ACTIVITIES = ACTIVITIES.map((act, i) => ({
-  id:           act.id,
-  label:        act.label,
-  energyCost:   SOCIAL_ENERGY_COSTS[act.id] ?? 0.35,
+  id: act.id,
+  label: act.label,
+  energyCost: SOCIAL_ENERGY_COSTS[act.id] ?? 0.35,
   locationType: ACTIVITY_LOCATION_TYPE[act.id] ?? "either",
-  sortOrder:    i,
-  isBuiltin:    true,
+  sortOrder: i,
+  isBuiltin: true,
 }));
 
 /** Seed built-in activities if the store is empty. */

@@ -6,12 +6,18 @@ import { mkdirSync } from "fs";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 mkdirSync(path.join(__dirname, "../data"), { recursive: true });
 
-import { getActiveCascadeEvents, getFriend, updateInviteStatus, updateInviteResponse, getEvent } from "./db/queries.js";
+import {
+  getActiveCascadeEvents,
+  getFriend,
+  updateInviteStatus,
+  updateInviteResponse,
+  getEvent,
+} from "./db/queries.js";
 import { addAttendeesToCalendarEvent, pollGcalAttendeeStatus } from "./google.js";
 import { sendInviteEmail } from "./email.js";
 import { sendIMessage } from "./imessage.js";
 
-const GRACE_PERIOD_MS  = 36 * 60 * 60 * 1000;
+const GRACE_PERIOD_MS = 36 * 60 * 60 * 1000;
 const POLL_INTERVAL_MS = 15 * 60 * 1000;
 
 async function dispatchInvite(event, friend, channel) {
@@ -48,7 +54,7 @@ async function runCascade() {
       }
     }
 
-    const yesCount = event.invites.filter(i => i.response === "yes").length;
+    const yesCount = event.invites.filter((i) => i.response === "yes").length;
     if (event.maxCapacity && yesCount >= event.maxCapacity) {
       console.log(`[cascade] event ${event.id} full (${yesCount}/${event.maxCapacity}) — skipping`);
       continue;
@@ -57,10 +63,10 @@ async function runCascade() {
     // Ghost anyone invited >36hrs ago with no response (non-gcal channels)
     const now = Date.now();
     for (const inv of event.invites) {
-      if (inv.inviteStatus !== "invited")        continue;
-      if (inv.response !== "pending")            continue;
-      if (inv.inviteChannel === "gcal")          continue; // GCal handles its own reminders
-      if (!inv.inviteSentAt)                     continue;
+      if (inv.inviteStatus !== "invited") continue;
+      if (inv.response !== "pending") continue;
+      if (inv.inviteChannel === "gcal") continue; // GCal handles its own reminders
+      if (!inv.inviteSentAt) continue;
       if (now - inv.inviteSentAt < GRACE_PERIOD_MS) continue;
 
       console.log(`[cascade] marking ${inv.friendId} ghosted on event ${event.id}`);
@@ -68,12 +74,12 @@ async function runCascade() {
     }
 
     // Advance next queued person if slot open
-    const refreshed  = getEvent(event.id);
-    const currentYes = refreshed.invites.filter(i => i.response === "yes").length;
-    const slotsLeft  = (event.maxCapacity ?? Infinity) - currentYes;
+    const refreshed = getEvent(event.id);
+    const currentYes = refreshed.invites.filter((i) => i.response === "yes").length;
+    const slotsLeft = (event.maxCapacity ?? Infinity) - currentYes;
     if (slotsLeft <= 0) continue;
 
-    const nextQueued = refreshed.invites.find(i => i.inviteStatus === "queued");
+    const nextQueued = refreshed.invites.find((i) => i.inviteStatus === "queued");
     if (!nextQueued) continue;
 
     const candidateFriend = getFriend(nextQueued.friendId);
@@ -81,20 +87,25 @@ async function runCascade() {
 
     // Skip if this friend conflicts with anyone who already said yes
     const yesFriendIds = refreshed.invites
-      .filter(i => i.response === "yes")
-      .map(i => i.friendId);
+      .filter((i) => i.response === "yes")
+      .map((i) => i.friendId);
 
     const candidateConflicts = candidateFriend.conflicts ?? [];
-    const conflictsWithYes = yesFriendIds.some(id =>
-      candidateConflicts.includes(id) ||
-      (getFriend(id)?.conflicts ?? []).includes(candidateFriend.id)
+    const conflictsWithYes = yesFriendIds.some(
+      (id) =>
+        candidateConflicts.includes(id) ||
+        (getFriend(id)?.conflicts ?? []).includes(candidateFriend.id)
     );
 
     if (conflictsWithYes) {
-      console.log(`[cascade] skipping ${candidateFriend.name} — conflicts with a confirmed attendee`);
+      console.log(
+        `[cascade] skipping ${candidateFriend.name} — conflicts with a confirmed attendee`
+      );
       updateInviteStatus(event.id, candidateFriend.id, "queued"); // leave queued, try next
       // Try advancing to the person after them instead
-      const afterNext = refreshed.invites.find(i => i.inviteStatus === "queued" && i.friendId !== candidateFriend.id);
+      const afterNext = refreshed.invites.find(
+        (i) => i.inviteStatus === "queued" && i.friendId !== candidateFriend.id
+      );
       if (afterNext) {
         // Re-run the advance logic for afterNext on next poll cycle (don't recurse)
         console.log(`[cascade] will try ${getFriend(afterNext.friendId)?.name} next poll`);
@@ -113,8 +124,9 @@ async function runCascade() {
       console.log(`[cascade] invite sent to ${friend.name}`);
 
       if (event.gcalEventId && channel === "gcal" && friend.email) {
-        await addAttendeesToCalendarEvent(event.gcalEventId, [friend.email])
-          .catch(err => console.error(`[cascade] gcal update failed:`, err.message));
+        await addAttendeesToCalendarEvent(event.gcalEventId, [friend.email]).catch((err) =>
+          console.error(`[cascade] gcal update failed:`, err.message)
+        );
       }
     } catch (err) {
       console.error(`[cascade] failed to invite ${friend.name}:`, err.message);

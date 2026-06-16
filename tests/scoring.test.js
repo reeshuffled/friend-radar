@@ -36,9 +36,9 @@ describe("scoreFor — basic structure", () => {
   });
 
   it("higher interest produces higher score", () => {
-    const lowInterest  = { ...baseFriend, interests: { "board-games": 1 } };
+    const lowInterest = { ...baseFriend, interests: { "board-games": 1 } };
     const highInterest = { ...baseFriend, interests: { "board-games": 5 } };
-    const low  = scoreFor(lowInterest,  "board-games", slot, events).score;
+    const low = scoreFor(lowInterest, "board-games", slot, events).score;
     const high = scoreFor(highInterest, "board-games", slot, events).score;
     expect(high).toBeGreaterThan(low);
   });
@@ -55,15 +55,15 @@ describe("scoreFor — basic structure", () => {
 describe("scoreFor — slot matching", () => {
   it("slot mismatch reduces able component", () => {
     const constrainedFriend = { ...baseFriend, availSlots: ["weekday-day"] };
-    const match    = scoreFor(constrainedFriend, "board-games", "weekday-day", events);
+    const match = scoreFor(constrainedFriend, "board-games", "weekday-day", events);
     const mismatch = scoreFor(constrainedFriend, "board-games", "weekend-evening", events);
     expect(match.able).toBeGreaterThan(mismatch.able);
   });
 
   it("friend with no slots has no slot constraint", () => {
-    const noSlots  = { ...baseFriend, availSlots: [] };
+    const noSlots = { ...baseFriend, availSlots: [] };
     const withSlot = { ...baseFriend, availSlots: ["weekend-evening"] };
-    const r1 = scoreFor(noSlots,  "board-games", "weekend-evening", events);
+    const r1 = scoreFor(noSlots, "board-games", "weekend-evening", events);
     const r2 = scoreFor(withSlot, "board-games", "weekend-evening", events);
     expect(r1.able).toBe(r2.able);
   });
@@ -72,18 +72,20 @@ describe("scoreFor — slot matching", () => {
 describe("scoreFor — distance", () => {
   it("local friend scores higher able than far friend", () => {
     const local = { ...baseFriend, distanceTier: "local" };
-    const far   = { ...baseFriend, distanceTier: "far" };
-    expect(scoreFor(local, "board-games", slot, events).able)
-      .toBeGreaterThan(scoreFor(far, "board-games", slot, events).able);
+    const far = { ...baseFriend, distanceTier: "far" };
+    expect(scoreFor(local, "board-games", slot, events).able).toBeGreaterThan(
+      scoreFor(far, "board-games", slot, events).able
+    );
   });
 });
 
 describe("scoreFor — trust", () => {
   it("uses slider-based trust when < 2 history points", () => {
     const highRel = { ...baseFriend, reliability: 5, responsiveness: 5 };
-    const lowRel  = { ...baseFriend, reliability: 1, responsiveness: 1 };
-    expect(scoreFor(highRel, "board-games", slot, events).trust)
-      .toBeGreaterThan(scoreFor(lowRel, "board-games", slot, events).trust);
+    const lowRel = { ...baseFriend, reliability: 1, responsiveness: 1 };
+    expect(scoreFor(highRel, "board-games", slot, events).trust).toBeGreaterThan(
+      scoreFor(lowRel, "board-games", slot, events).trust
+    );
   });
 
   it("switches to history-based trust with ≥2 invite data points", () => {
@@ -113,7 +115,7 @@ describe("scoreFor — trust", () => {
       }));
 
     const reliable = scoreFor(baseFriend, "board-games", slot, makeHistory(true)).trust;
-    const flaky    = scoreFor(baseFriend, "board-games", slot, makeHistory(false)).trust;
+    const flaky = scoreFor(baseFriend, "board-games", slot, makeHistory(false)).trust;
     expect(reliable).toBeGreaterThan(flaky);
   });
 });
@@ -121,7 +123,7 @@ describe("scoreFor — trust", () => {
 describe("scoreFor — comfort level and plus one", () => {
   it("needs-plus1 friend scores higher willing when allowsPlusOne=true", () => {
     const needsPlus = { ...baseFriend, comfortLevel: "needs-plus1" };
-    const withPlus    = scoreFor(needsPlus, "board-games", slot, events, true).willing;
+    const withPlus = scoreFor(needsPlus, "board-games", slot, events, true).willing;
     const withoutPlus = scoreFor(needsPlus, "board-games", slot, events, false).willing;
     expect(withPlus).toBeGreaterThan(withoutPlus);
   });
@@ -134,7 +136,7 @@ describe("scoreFor — notice preference", () => {
     tmrw.setDate(tmrw.getDate() + 1);
     const eventDate = tmrw.toISOString().split("T")[0];
 
-    const withDate    = scoreFor(planner, "board-games", slot, events, false, eventDate).able;
+    const withDate = scoreFor(planner, "board-games", slot, events, false, eventDate).able;
     const withoutDate = scoreFor(planner, "board-games", slot, events, false, null).able;
     expect(withDate).toBeLessThan(withoutDate);
   });
@@ -152,27 +154,29 @@ describe("scoreFor — ranking integration (attrNorm)", () => {
   });
 
   it("rankings.reliability = 10 raises trust vs legacy reliability = 3", () => {
-    const ranked   = { ...baseFriend, rankings: { reliability: 10.0 }, responsiveness: 3 };
-    const legacy   = { ...baseFriend, reliability: 3, rankings: {} };
-    expect(scoreFor(ranked, "board-games", slot, events).trust)
-      .toBeGreaterThan(scoreFor(legacy, "board-games", slot, events).trust);
+    const ranked = { ...baseFriend, rankings: { reliability: 10.0 }, responsiveness: 3 };
+    const legacy = { ...baseFriend, reliability: 3, rankings: {} };
+    expect(scoreFor(ranked, "board-games", slot, events).trust).toBeGreaterThan(
+      scoreFor(legacy, "board-games", slot, events).trust
+    );
   });
 
   it("rankings.reliability = 2.0 (floor) scores lower trust than legacy reliability = 3", () => {
     const ranked = { ...baseFriend, rankings: { reliability: 2.0 }, rankings_vibe: undefined };
     const legacy = { ...baseFriend, reliability: 3, rankings: {} };
-    expect(scoreFor(ranked, "board-games", slot, events).trust)
-      .toBeLessThan(scoreFor(legacy, "board-games", slot, events).trust);
+    expect(scoreFor(ranked, "board-games", slot, events).trust).toBeLessThan(
+      scoreFor(legacy, "board-games", slot, events).trust
+    );
   });
 });
 
 describe("scoreFor — flake counter", () => {
   it("manualFlakes > 0 lowers trust monotonically", () => {
-    const zero   = { ...baseFriend, rankings: {}, manualFlakes: 0 };
-    const one    = { ...baseFriend, rankings: {}, manualFlakes: 1 };
-    const three  = { ...baseFriend, rankings: {}, manualFlakes: 3 };
-    const t0 = scoreFor(zero,  "board-games", slot, events).trust;
-    const t1 = scoreFor(one,   "board-games", slot, events).trust;
+    const zero = { ...baseFriend, rankings: {}, manualFlakes: 0 };
+    const one = { ...baseFriend, rankings: {}, manualFlakes: 1 };
+    const three = { ...baseFriend, rankings: {}, manualFlakes: 3 };
+    const t0 = scoreFor(zero, "board-games", slot, events).trust;
+    const t1 = scoreFor(one, "board-games", slot, events).trust;
     const t3 = scoreFor(three, "board-games", slot, events).trust;
     expect(t0).toBeGreaterThan(t1);
     expect(t1).toBeGreaterThan(t3);
@@ -193,7 +197,12 @@ describe("scoreFor — flake counter", () => {
   });
 
   it("returns effectiveFlakes and flakePenalty in result", () => {
-    const r = scoreFor({ ...baseFriend, rankings: {}, manualFlakes: 2 }, "board-games", slot, events);
+    const r = scoreFor(
+      { ...baseFriend, rankings: {}, manualFlakes: 2 },
+      "board-games",
+      slot,
+      events
+    );
     expect(r.effectiveFlakes).toBe(2);
     expect(r.flakePenalty).toBeCloseTo(0.76, 2);
   });
@@ -202,10 +211,10 @@ describe("scoreFor — flake counter", () => {
 describe("scoreFor — recency nudge", () => {
   it("overdue friend gets positive nudge", () => {
     const overdueFriend = { ...baseFriend, targetFreqDays: 14, lastHangDate: "2024-01-01" };
-    const freshFriend   = { ...baseFriend, targetFreqDays: 14 };
+    const freshFriend = { ...baseFriend, targetFreqDays: 14 };
 
     const overdue = scoreFor(overdueFriend, "board-games", slot, events).score;
-    const noHang  = scoreFor(freshFriend,  "board-games", slot, events).score;
+    const noHang = scoreFor(freshFriend, "board-games", slot, events).score;
 
     // Overdue should get a boost (≤+2), fresh with no hang gets +0.8 nudge
     // Both get nudges but overdue should be higher

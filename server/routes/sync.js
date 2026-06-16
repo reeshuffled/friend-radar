@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { getAllFriends, getAllEvents, bulkUpsertFriends, createEvent, getEvent } from "../db/queries.js";
+import { getAllFriends, getAllEvents, bulkUpsertFriends, createEvent } from "../db/queries.js";
 
 const router = Router();
 
@@ -7,7 +7,7 @@ const router = Router();
 router.get("/", (req, res) => {
   res.json({
     friends: getAllFriends(),
-    events:  getAllEvents(),
+    events: getAllEvents(),
   });
 });
 
@@ -19,14 +19,14 @@ router.post("/", (req, res) => {
 
   bulkUpsertFriends(friends);
 
-  const existing = new Set(getAllEvents().map(e => e.id));
+  const existing = new Set(getAllEvents().map((e) => e.id));
   for (const event of events) {
     if (!existing.has(event.id)) createEvent(event);
   }
 
   res.json({
     friends: getAllFriends(),
-    events:  getAllEvents(),
+    events: getAllEvents(),
   });
 });
 

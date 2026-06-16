@@ -20,7 +20,7 @@ const baseFriendShape = {
   notes: "Loves board games",
   status: "Friend",
   groups: ["College"],
-  wantAround: 'active',
+  wantAround: "active",
   busyUntil: null,
   reliability: 4,
   responsiveness: 3,
@@ -75,7 +75,7 @@ const baseInviteShape = {
 
 describe("friendShapeToRow / friendRowToShape", () => {
   it("round-trips without data loss", () => {
-    const row   = friendShapeToRow(baseFriendShape);
+    const row = friendShapeToRow(baseFriendShape);
     const shape = friendRowToShape(row);
 
     expect(shape.id).toBe(baseFriendShape.id);
@@ -84,7 +84,7 @@ describe("friendShapeToRow / friendRowToShape", () => {
     expect(shape.groups).toEqual(baseFriendShape.groups);
     expect(shape.interests).toEqual(baseFriendShape.interests);
     expect(shape.availSlots).toEqual(baseFriendShape.availSlots);
-    expect(shape.wantAround).toBe('active');
+    expect(shape.wantAround).toBe("active");
     expect(shape.busyUntil).toBe(null);
     expect(shape.targetFreqDays).toBe(14);
     expect(shape.lastHangDate).toBe("2025-01-15");
@@ -96,12 +96,12 @@ describe("friendShapeToRow / friendRowToShape", () => {
 
   it("serializes wantAround and busyUntil", () => {
     const row = friendShapeToRow(baseFriendShape);
-    expect(row.want_around).toBe('active');
+    expect(row.want_around).toBe("active");
     expect(row.busy_until).toBe(null);
   });
 
   it("round-trips busyUntil date string", () => {
-    const row   = friendShapeToRow({ ...baseFriendShape, busyUntil: "2026-12-31" });
+    const row = friendShapeToRow({ ...baseFriendShape, busyUntil: "2026-12-31" });
     const shape = friendRowToShape(row);
     expect(row.busy_until).toBe("2026-12-31");
     expect(shape.busyUntil).toBe("2026-12-31");
@@ -119,7 +119,7 @@ describe("friendShapeToRow / friendRowToShape", () => {
     const minimal = { id: "f2", name: "Bob" };
     const row = friendShapeToRow(minimal);
     expect(row.email).toBe("");
-    expect(row.want_around).toBe('active');
+    expect(row.want_around).toBe("active");
     expect(row.reliability).toBe(3);
     expect(JSON.parse(row.groups_json)).toEqual([]);
     expect(JSON.parse(row.interests_json)).toEqual({});
@@ -139,7 +139,7 @@ describe("friendShapeToRow / friendRowToShape", () => {
 
 describe("eventShapeToRow / eventRowToShape", () => {
   it("round-trips without data loss", () => {
-    const row   = eventShapeToRow(baseEventShape);
+    const row = eventShapeToRow(baseEventShape);
     const shape = eventRowToShape(row);
 
     expect(shape.id).toBe("e1");
@@ -156,9 +156,9 @@ describe("eventShapeToRow / eventRowToShape", () => {
   it("round-trips event with legs", () => {
     const legs = [
       { id: "leg-1", label: "Pre-drinks", startTime: "18:00", endTime: "19:30", location: "Bar X" },
-      { id: "leg-2", label: "Concert",    startTime: "19:30", endTime: "22:00", location: "Venue Y" },
+      { id: "leg-2", label: "Concert", startTime: "19:30", endTime: "22:00", location: "Venue Y" },
     ];
-    const row   = eventShapeToRow({ ...baseEventShape, legs });
+    const row = eventShapeToRow({ ...baseEventShape, legs });
     expect(typeof row.legs_json).toBe("string");
     const shape = eventRowToShape(row);
     expect(shape.legs).toEqual(legs);
@@ -177,7 +177,7 @@ describe("eventShapeToRow / eventRowToShape", () => {
 
 describe("inviteShapeToRow / inviteRowToShape", () => {
   it("round-trips without data loss", () => {
-    const row   = inviteShapeToRow("e1", baseInviteShape, 1);
+    const row = inviteShapeToRow("e1", baseInviteShape, 1);
     const shape = inviteRowToShape(row);
 
     expect(shape.friendId).toBe("f1");
@@ -194,7 +194,7 @@ describe("inviteShapeToRow / inviteRowToShape", () => {
   });
 
   it("converts showed true/false to 1/0", () => {
-    const rowTrue  = inviteShapeToRow("e1", { ...baseInviteShape, showed: true }, 1);
+    const rowTrue = inviteShapeToRow("e1", { ...baseInviteShape, showed: true }, 1);
     const rowFalse = inviteShapeToRow("e1", { ...baseInviteShape, showed: false }, 1);
     expect(rowTrue.showed).toBe(1);
     expect(rowFalse.showed).toBe(0);

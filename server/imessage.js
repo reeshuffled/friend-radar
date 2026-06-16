@@ -29,8 +29,12 @@ tell application "Contacts"
   return output
 end tell`;
   const { stdout } = await execAsync(`osascript -e '${script.replace(/'/g, "'\\''")}'`);
-  return stdout.trim().split("\n").filter(Boolean).map(line => {
-    const [appleContactId, name, phone, email] = line.split("|");
-    return { appleContactId, name, phone: phone ?? "", email: email ?? "" };
-  });
+  return stdout
+    .trim()
+    .split("\n")
+    .filter(Boolean)
+    .map((line) => {
+      const [appleContactId, name, phone, email] = line.split("|");
+      return { appleContactId, name, phone: phone ?? "", email: email ?? "" };
+    });
 }

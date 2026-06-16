@@ -22,12 +22,12 @@ export const RANKED_ATTRS = [
  */
 export function rankedOrder(friends, attr) {
   return friends
-    .filter(f => typeof f.rankings?.[attr] === "number")
+    .filter((f) => typeof f.rankings?.[attr] === "number")
     .sort((a, b) => {
       const diff = b.rankings[attr] - a.rankings[attr]; // desc by rating
-      return diff !== 0 ? diff : a.id < b.id ? -1 : 1;  // asc by id as tie-break
+      return diff !== 0 ? diff : a.id < b.id ? -1 : 1; // asc by id as tie-break
     })
-    .map(f => f.id);
+    .map((f) => f.id);
 }
 
 // ── Binary-insertion comparison session ───────────────────────────────────────
@@ -45,9 +45,7 @@ export function startComparisonSession(orderedIds, newId, hintPos = null) {
   if (hi === 0) {
     return { orderedIds, newId, lo: 0, hi: 0, mid: 0, done: true, finalOrder: [newId] };
   }
-  const mid = hintPos != null
-    ? Math.max(0, Math.min(hi - 1, Math.round(hintPos)))
-    : (lo + hi) >> 1;
+  const mid = hintPos != null ? Math.max(0, Math.min(hi - 1, Math.round(hintPos))) : (lo + hi) >> 1;
   return { orderedIds, newId, lo, hi, mid, done: false, finalOrder: null };
 }
 
@@ -92,7 +90,7 @@ export function applyComparison(session, newWins) {
  * Removes movingId from the current order and begins a fresh comparison session.
  */
 export function reRank(friends, attr, movingId) {
-  const current = rankedOrder(friends, attr).filter(id => id !== movingId);
+  const current = rankedOrder(friends, attr).filter((id) => id !== movingId);
   return startComparisonSession(current, movingId);
 }
 
@@ -129,8 +127,8 @@ export function interpolate(orderedIds) {
  */
 export function buildRankingWrites(friends, attr, finalOrder) {
   const ratings = interpolate(finalOrder);
-  const friendMap = Object.fromEntries(friends.map(f => [f.id, f]));
-  return finalOrder.map(id => {
+  const friendMap = Object.fromEntries(friends.map((f) => [f.id, f]));
+  return finalOrder.map((id) => {
     const existing = friendMap[id]?.rankings ?? {};
     return {
       id,

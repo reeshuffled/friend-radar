@@ -9,9 +9,9 @@
  * conditionally render server-only affordances (calendar, invites, contacts).
  */
 import { serverApi } from "./server.js";
-import { localApi }  from "./local.js";
+import { localApi } from "./local.js";
 
-const BACKEND   = import.meta.env.VITE_BACKEND ?? "local";
+const BACKEND = import.meta.env.VITE_BACKEND ?? "local";
 const useServer = BACKEND === "server";
 
 export const api = useServer ? serverApi : localApi;
@@ -22,11 +22,11 @@ export const api = useServer ? serverApi : localApi;
  */
 export const capabilities = {
   /** True only in server mode — affects all features below. */
-  server:   useServer,
+  server: useServer,
   /** Google Calendar freebusy and hang-sync. */
   calendar: useServer,
   /** Email / iMessage / GCal invite dispatch and the cascade worker. */
-  invites:  useServer,
+  invites: useServer,
   /** macOS Contacts import. */
   contacts: useServer,
 };
