@@ -9,7 +9,7 @@ import {
   interpolate,
   buildRankingWrites,
   reorder,
-} from "../client/src/lib/ranking.js";
+} from "../../client/src/lib/ranking.js";
 
 // ── Config ────────────────────────────────────────────────────────────────────
 

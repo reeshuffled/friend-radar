@@ -8,7 +8,7 @@ import {
   lastHangFromEvents,
   formatTime,
   synergyBetween,
-} from "../client/src/lib/helpers.js";
+} from "../../client/src/lib/helpers.js";
 
 // ── daysSince ────────────────────────────────────────────────────────────────
 

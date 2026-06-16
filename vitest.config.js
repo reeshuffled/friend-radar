@@ -5,5 +5,8 @@ export default defineConfig({
     environment: "node",
     setupFiles: ["./tests/setup.js"],
     include: ["tests/**/*.test.js"],
+    alias: {
+      "@": "/Users/rees/Documents/friend-radar/client/src",
+    },
   },
 });

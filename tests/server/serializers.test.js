@@ -6,7 +6,7 @@ import {
   eventRowToShape,
   inviteShapeToRow,
   inviteRowToShape,
-} from "../server/db/serializers.js";
+} from "../../server/db/serializers.js";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 

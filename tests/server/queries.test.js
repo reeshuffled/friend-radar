@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { resetDb } from "../server/db/db.js";
+import { resetDb } from "../../server/db/db.js";
 import {
   getAllFriends,
   getFriend,
@@ -14,7 +14,7 @@ import {
   updateInviteStatus,
   updateInviteShowed,
   getActiveCascadeEvents,
-} from "../server/db/queries.js";
+} from "../../server/db/queries.js";
 
 // Each test gets a fresh in-memory database (DB_PATH=':memory:' set in setup.js).
 beforeEach(() => {

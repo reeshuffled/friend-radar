@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { scoreFor } from "../client/src/lib/scoring.js";
+import { scoreFor } from "../../client/src/lib/scoring.js";
 
 const baseFriend = {
   id: "f1",

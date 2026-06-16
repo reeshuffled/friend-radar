@@ -1,7 +1,7 @@
 /**
  * Server backend — all requests go to the Express API.
  * Base URL: VITE_SERVER_URL (empty = same-origin /api, covers production self-host
- * where Express serves client/dist as well as the Vite dev proxy).
+ * where Express serves dist/ as well as the Vite dev proxy).
  */
 const BASE = (import.meta.env.VITE_SERVER_URL ?? "") + "/api";
 
