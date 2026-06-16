@@ -8,6 +8,7 @@ import {
   eventRowToShape,
   inviteShapeToRow,
 } from "./serializers.js";
+import { encrypt as enc, decrypt as dec } from "./crypto.js";
 
 // node:sqlite returns null-prototype objects; spread into a plain object for serializer compat.
 const plain = (row) => (row ? Object.assign({}, row) : null);
@@ -224,7 +225,14 @@ export function deleteActivity(id) {
 // ── Auth ──────────────────────────────────────────────────────────────────────
 
 export function getAuth() {
-  return plain(getDb().prepare("SELECT * FROM auth WHERE user_id = 1").get()) ?? null;
+  const row = plain(getDb().prepare("SELECT * FROM auth WHERE user_id = 1").get());
+  if (!row) return null;
+  return {
+    ...row,
+    access_token: dec(row.access_token),
+    refresh_token: dec(row.refresh_token),
+    gmail_address: dec(row.gmail_address),
+  };
 }
 
 export function saveAuth({ accessToken, refreshToken, tokenExpiry, gmailAddress, gcalId }) {
@@ -241,28 +249,38 @@ export function saveAuth({ accessToken, refreshToken, tokenExpiry, gmailAddress,
       gcal_id       = excluded.gcal_id
   `
     )
-    .run({ accessToken, refreshToken, tokenExpiry, gmailAddress, gcalId });
+    .run({
+      accessToken: enc(accessToken),
+      refreshToken: enc(refreshToken),
+      tokenExpiry,
+      gmailAddress: enc(gmailAddress),
+      gcalId,
+    });
 }
 
 // ── Calendar hang sync ────────────────────────────────────────────────────────
 
 export function getFriendEmailMap() {
-  const rows = getDb().prepare("SELECT id, email FROM friends WHERE email != ''").all();
+  // Load all rows; filter after decryption since the encrypted ciphertext is never ""
+  const rows = getDb().prepare("SELECT id, email FROM friends").all();
   const map = {};
   for (const r of rows) {
     const row = plain(r);
-    if (row.email) map[row.email.toLowerCase()] = row.id;
+    const email = dec(row.email ?? "");
+    if (email) map[email.toLowerCase()] = row.id;
   }
   return map;
 }
 
 export function getCalSyncToken() {
   const row = plain(getDb().prepare("SELECT cal_sync_token FROM auth WHERE user_id = 1").get());
-  return row?.cal_sync_token ?? null;
+  return row?.cal_sync_token ? dec(row.cal_sync_token) : null;
 }
 
 export function saveCalSyncToken(token) {
-  getDb().prepare("UPDATE auth SET cal_sync_token = ? WHERE user_id = 1").run(token);
+  getDb()
+    .prepare("UPDATE auth SET cal_sync_token = ? WHERE user_id = 1")
+    .run(enc(token));
 }
 
 export function bulkUpdateLastHangDate(updates) {

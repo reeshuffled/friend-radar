@@ -1,5 +1,7 @@
-import { describe, it, expect, beforeEach } from "vitest";
-import { resetDb } from "../../server/db/db.js";
+import { describe, it, expect, beforeEach, afterAll } from "vitest";
+import { resetDb, getDb } from "../../server/db/db.js";
+import { _resetKey } from "../../server/db/crypto.js";
+import { getFriendEmailMap } from "../../server/db/queries.js";
 import {
   getAllFriends,
   getFriend,
@@ -265,5 +267,73 @@ describe("getActiveCascadeEvents", () => {
   it("returns empty array when no active cascade events", () => {
     createEvent(boardGamesEvent); // cascade: false
     expect(getActiveCascadeEvents()).toHaveLength(0);
+  });
+});
+
+// ── Encryption integration ────────────────────────────────────────────────────
+// These run with a real DB_ENCRYPTION_KEY to verify that the serializer
+// layer encrypts on write and decrypts on read transparently.
+
+const TEST_KEY = Buffer.alloc(32, 0xab).toString("base64");
+
+describe("encryption integration (key set)", () => {
+  beforeEach(() => {
+    process.env.DB_ENCRYPTION_KEY = TEST_KEY;
+    _resetKey();
+    resetDb();
+  });
+
+  afterAll(() => {
+    delete process.env.DB_ENCRYPTION_KEY;
+    _resetKey();
+  });
+
+  it("getFriend returns original plaintext values after encrypted write", () => {
+    upsertFriend(alice);
+    const fetched = getFriend("f1");
+    expect(fetched.email).toBe("alice@example.com");
+    expect(fetched.notes).toBe("");
+    expect(fetched.interests).toEqual({ "board-games": 5 });
+  });
+
+  it("raw DB row stores ciphertext for email", () => {
+    upsertFriend(alice);
+    const raw = Object.assign(
+      {},
+      getDb().prepare("SELECT email FROM friends WHERE id = 'f1'").get()
+    );
+    expect(raw.email).toMatch(/^enc:v1:/);
+  });
+
+  it("getFriendEmailMap resolves cleartext email even when stored encrypted", () => {
+    upsertFriend(alice);
+    const map = getFriendEmailMap();
+    expect(map["alice@example.com"]).toBe("f1");
+  });
+
+  it("getEvent returns original plaintext location and notes", () => {
+    const eventWithDetails = {
+      ...boardGamesEvent,
+      location: "123 Main St",
+      notes: "Bring snacks",
+    };
+    upsertFriend(alice);
+    createEvent(eventWithDetails);
+    const fetched = getEvent("e1");
+    expect(fetched.location).toBe("123 Main St");
+    expect(fetched.notes).toBe("Bring snacks");
+  });
+
+  it("transparent read: plaintext rows without enc:v1: prefix still load correctly", () => {
+    // Write directly without encryption (simulating legacy data)
+    delete process.env.DB_ENCRYPTION_KEY;
+    _resetKey();
+    upsertFriend(alice);
+
+    // Now enable encryption and read the legacy row
+    process.env.DB_ENCRYPTION_KEY = TEST_KEY;
+    _resetKey();
+    const fetched = getFriend("f1");
+    expect(fetched.email).toBe("alice@example.com"); // transparent passthrough
   });
 });

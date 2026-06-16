@@ -6,6 +6,9 @@ import { PlanTab } from "./components/planning/PlanTab.jsx";
 import { EventsTab } from "./components/events/EventsTab.jsx";
 import { FriendsTab } from "./components/friends/FriendsTab.jsx";
 import { FriendForm } from "./components/friends/FriendForm.jsx";
+import { getEncMeta } from "./lib/api/db.js";
+import { unlockWithMeta } from "./lib/crypto.js";
+import { EncryptionGate } from "./components/ui/EncryptionGate.jsx";
 
 export default function App() {
   const [friends, setFriends] = useState([]);
@@ -19,6 +22,8 @@ export default function App() {
   const [editing, setEditing] = useState(null);
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState(null);
+  // null = checking; "unlock" = encrypted + needs passphrase; "offer" = first-run opt-in; "ready" = go
+  const [encState, setEncState] = useState(null);
 
   const scrollRestoreRef = useRef(0);
 
@@ -31,7 +36,27 @@ export default function App() {
     eventsRef.current = events;
   }, [events]);
 
+  // Local mode only: check encryption state before loading data.
+  // Server mode skips this — encryption is handled server-side via env var.
   useEffect(() => {
+    if (capabilities.server) {
+      setEncState("ready");
+      return;
+    }
+    (async () => {
+      const meta = await getEncMeta();
+      if (meta) {
+        setEncState("unlock"); // encryption enabled, need passphrase
+      } else if (localStorage.getItem("fr:enc-declined")) {
+        setEncState("ready"); // user already declined
+      } else {
+        setEncState("offer"); // first-run offer
+      }
+    })();
+  }, []);
+
+  useEffect(() => {
+    if (encState !== "ready") return; // wait until encryption gate is resolved
     (async () => {
       try {
         const [fs, evts, acts] = await Promise.all([
@@ -63,7 +88,7 @@ export default function App() {
         setLoaded(true);
       }
     })();
-  }, []);
+  }, [encState]);
 
   const applyCalendarUpdates = useCallback((updated) => {
     setFriends((prev) =>
@@ -179,6 +204,21 @@ export default function App() {
     );
     api.advanceCascade(eventId).catch(console.error);
   }, []);
+
+  // Encryption gate (local mode): show before the loading spinner so data
+  // is never fetched until the passphrase has been accepted (or skipped).
+  if (encState === "offer" || encState === "unlock") {
+    return (
+      <EncryptionGate
+        mode={encState}
+        onReady={() => setEncState("ready")}
+        onDecline={() => {
+          localStorage.setItem("fr:enc-declined", "1");
+          setEncState("ready");
+        }}
+      />
+    );
+  }
 
   if (!loaded)
     return (

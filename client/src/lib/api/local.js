@@ -7,6 +7,7 @@
  * callers can swallow them the same way they swallow network errors.
  */
 import { getLocalDb, seedActivitiesIfEmpty, BUILTIN_ACTIVITIES } from "./db.js";
+import { isUnlocked, encryptFriend, decryptFriend, encryptEvent, decryptEvent } from "../crypto.js";
 
 export class NoServerError extends Error {
   constructor(feature) {
@@ -35,29 +36,31 @@ function advanceHangDate(current, candidate) {
 
 async function getFriends() {
   const db = await getLocalDb();
-  return db.getAll("friends");
+  const rows = await db.getAll("friends");
+  if (!isUnlocked()) return rows;
+  return Promise.all(rows.map(decryptFriend));
 }
 
 async function upsertFriend(f) {
   const db = await getLocalDb();
   const now = Date.now();
-  const existing = await db.get("friends", f.id);
+  const existingRaw = await db.get("friends", f.id);
 
   // Last-write-wins: only replace if incoming updatedAt is >= existing.
   // If no updatedAt provided, always write (first save).
-  if (existing && f.updatedAt != null && f.updatedAt < existing.updatedAt) {
-    return existing;
+  if (existingRaw && f.updatedAt != null && f.updatedAt < existingRaw.updatedAt) {
+    return isUnlocked() ? decryptFriend(existingRaw) : existingRaw;
   }
 
-  const record = { ...f, updatedAt: now };
-  await db.put("friends", record);
-  return record;
+  const toStore = isUnlocked() ? await encryptFriend({ ...f, updatedAt: now }) : { ...f, updatedAt: now };
+  await db.put("friends", toStore);
+  return { ...f, updatedAt: now };
 }
 
 async function deleteFriend(id) {
   const db = await getLocalDb();
   await db.delete("friends", id);
-  // Also scrub this friend from all event invites
+  // Also scrub this friend from all event invites (stored records stay as-is — no re-encrypt needed)
   const events = await db.getAll("events");
   const tx = db.transaction("events", "readwrite");
   for (const ev of events) {
@@ -73,7 +76,9 @@ async function deleteFriend(id) {
 
 async function getEvents() {
   const db = await getLocalDb();
-  return db.getAll("events");
+  const rows = await db.getAll("events");
+  if (!isUnlocked()) return rows;
+  return Promise.all(rows.map(decryptEvent));
 }
 
 async function createEvent(event) {
@@ -86,22 +91,27 @@ async function createEvent(event) {
       queuePosition: i + 1,
     })),
   };
-  await db.put("events", record);
+  const toStore = isUnlocked() ? await encryptEvent(record) : record;
+  await db.put("events", toStore);
   return { event: record };
 }
 
 async function updateEvent(id, data) {
   const db = await getLocalDb();
-  const existing = (await db.get("events", id)) ?? { id };
+  const existingRaw = (await db.get("events", id)) ?? { id };
+  // Decrypt existing first so we merge plaintext with plaintext
+  const existing = isUnlocked() ? await decryptEvent(existingRaw) : existingRaw;
   const updated = { ...existing, ...data, id };
-  await db.put("events", updated);
+  const toStore = isUnlocked() ? await encryptEvent(updated) : updated;
+  await db.put("events", toStore);
   return updated;
 }
 
 async function advanceCascade(id) {
   const db = await getLocalDb();
-  const ev = await db.get("events", id);
-  if (!ev) return {};
+  const evRaw = await db.get("events", id);
+  if (!evRaw) return {};
+  const ev = isUnlocked() ? await decryptEvent(evRaw) : evRaw;
   const nextQueued = ev.invites?.find((i) => i.inviteStatus === "queued");
   if (!nextQueued) return { event: ev };
   const updated = {
@@ -112,31 +122,36 @@ async function advanceCascade(id) {
         : i
     ),
   };
-  await db.put("events", updated);
+  const toStore = isUnlocked() ? await encryptEvent(updated) : updated;
+  await db.put("events", toStore);
   return { event: updated };
 }
 
 async function recordResponse(eventId, friendId, response) {
   const db = await getLocalDb();
-  const ev = await db.get("events", eventId);
-  if (!ev) return {};
+  const evRaw = await db.get("events", eventId);
+  if (!evRaw) return {};
+  const ev = isUnlocked() ? await decryptEvent(evRaw) : evRaw;
   const updated = {
     ...ev,
     invites: ev.invites.map((i) => (i.friendId === friendId ? { ...i, response } : i)),
   };
-  await db.put("events", updated);
+  const toStore = isUnlocked() ? await encryptEvent(updated) : updated;
+  await db.put("events", toStore);
   return updated;
 }
 
 async function updateInviteAttendingLegs(eventId, friendId, attendingLegs) {
   const db = await getLocalDb();
-  const ev = await db.get("events", eventId);
-  if (!ev) return {};
+  const evRaw = await db.get("events", eventId);
+  if (!evRaw) return {};
+  const ev = isUnlocked() ? await decryptEvent(evRaw) : evRaw;
   const updated = {
     ...ev,
     invites: ev.invites.map((i) => (i.friendId === friendId ? { ...i, attendingLegs } : i)),
   };
-  await db.put("events", updated);
+  const toStore = isUnlocked() ? await encryptEvent(updated) : updated;
+  await db.put("events", toStore);
   return updated;
 }
 
@@ -201,30 +216,28 @@ async function confirmCalendarHang(friendId, date) {
 // ─── data portability ────────────────────────────────────────────────────────
 
 async function exportData() {
+  // Export always returns decrypted plaintext (explicit user action)
+  const friends = await getFriends();
+  const events = await getEvents();
   const db = await getLocalDb();
-  const [friends, events, activities] = await Promise.all([
-    db.getAll("friends"),
-    db.getAll("events"),
-    db.getAll("activities"),
-  ]);
+  const activities = await db.getAll("activities");
   return { version: 1, friends, events, activities };
 }
 
 async function importData(json) {
   if (!json || json.version !== 1) throw new Error("Invalid backup format (expected version 1)");
+  // Incoming data is plaintext; write through the encrypting put path
+  for (const f of json.friends ?? []) await upsertFriend(f);
+  for (const e of json.events ?? []) await createEvent(e);
+
   const db = await getLocalDb();
-  const tx = db.transaction(["friends", "events", "activities"], "readwrite");
-
-  for (const f of json.friends ?? []) tx.objectStore("friends").put(f);
-  for (const e of json.events ?? []) tx.objectStore("events").put(e);
-  for (const a of json.activities ?? []) tx.objectStore("activities").put(a);
-
+  const tx = db.transaction("activities", "readwrite");
+  for (const a of json.activities ?? []) tx.store.put(a);
   // Always ensure built-ins exist after import
   for (const builtin of BUILTIN_ACTIVITIES) {
-    const existing = await tx.objectStore("activities").get(builtin.id);
-    if (!existing) tx.objectStore("activities").put(builtin);
+    const existing = await tx.store.get(builtin.id);
+    if (!existing) tx.store.put(builtin);
   }
-
   await tx.done;
 }
 

@@ -16,6 +16,17 @@ import {
 } from "../../lib/ranking.js";
 import { RankSession } from "./RankSession.jsx";
 import { SeedRound } from "./SeedRound.jsx";
+import { getEncMeta, saveEncMeta, deleteEncMeta } from "../../lib/api/db.js";
+import {
+  buildEncMeta,
+  unlockWithMeta,
+  isUnlocked,
+  lock,
+  encryptFriend,
+  decryptFriend,
+  encryptEvent,
+  decryptEvent,
+} from "../../lib/crypto.js";
 
 export function FriendsTab({
   friends,
@@ -55,6 +66,15 @@ export function FriendsTab({
   const [showSeedRound, setShowSeedRound] = useState(false);
   const [calAudit, setCalAudit] = useState(null);
   const [backupMsg, setBackupMsg] = useState(null);
+  const [encMsg, setEncMsg] = useState(null);
+  const [encPanel, setEncPanel] = useState(null); // null | "enable" | "change" | "disable"
+  const [encPhrase, setEncPhrase] = useState("");
+  const [encConfirm, setEncConfirm] = useState("");
+  const [encBusy, setEncBusy] = useState(false);
+  const [encEnabled, setEncEnabled] = useState(false);
+  useEffect(() => {
+    if (!capabilities.server) getEncMeta().then((m) => setEncEnabled(!!m));
+  }, []);
   const [showGroups, setShowGroups] = useState(() => getLS("fr_showGroups", false));
   const [expandedGroup, setExpandedGroup] = useState(null);
   const [confirmDeleteGroup, setConfirmDeleteGroup] = useState(null);
@@ -204,6 +224,119 @@ export function FriendsTab({
     } catch (err) {
       setBackupMsg(err.message?.includes("version") ? "Invalid backup file" : "Import failed");
       setTimeout(() => setBackupMsg(null), 4000);
+    }
+  };
+
+  // ── Encryption management (local mode only) ────────────────────────────────
+
+  const resetEncForm = () => {
+    setEncPhrase("");
+    setEncConfirm("");
+    setEncMsg(null);
+  };
+
+  const handleEnableEncryption = async (e) => {
+    e.preventDefault();
+    if (encPhrase !== encConfirm) {
+      setEncMsg("Passphrases don't match.");
+      return;
+    }
+    setEncBusy(true);
+    setEncMsg(null);
+    try {
+      const meta = await buildEncMeta(encPhrase);
+      await saveEncMeta(meta);
+      // Re-encrypt all current data
+      const db = (await import("../../lib/api/db.js")).getLocalDb
+        ? await (await import("../../lib/api/db.js")).getLocalDb()
+        : null;
+      if (db) {
+        const [allFriends, allEvents] = await Promise.all([
+          db.getAll("friends"),
+          db.getAll("events"),
+        ]);
+        for (const f of allFriends) await db.put("friends", await encryptFriend(f));
+        for (const ev of allEvents) await db.put("events", await encryptEvent(ev));
+      }
+      setEncEnabled(true);
+      localStorage.removeItem("fr:enc-declined");
+      setEncPanel(null);
+      resetEncForm();
+      setEncMsg("Encryption enabled ✓");
+      setTimeout(() => setEncMsg(null), 3000);
+    } catch (err) {
+      setEncMsg(err.message ?? "Failed to enable encryption.");
+    } finally {
+      setEncBusy(false);
+    }
+  };
+
+  const handleChangePassphrase = async (e) => {
+    e.preventDefault();
+    if (encPhrase !== encConfirm) {
+      setEncMsg("Passphrases don't match.");
+      return;
+    }
+    setEncBusy(true);
+    setEncMsg(null);
+    try {
+      // Decrypt everything with current key, then re-encrypt with new passphrase
+      const db = await (await import("../../lib/api/db.js")).getLocalDb();
+      const [allFriends, allEvents] = await Promise.all([
+        db.getAll("friends"),
+        db.getAll("events"),
+      ]);
+      const decFriends = await Promise.all(allFriends.map(decryptFriend));
+      const decEvents = await Promise.all(allEvents.map(decryptEvent));
+      // Build new meta (sets the new active key)
+      const meta = await buildEncMeta(encPhrase);
+      await saveEncMeta(meta);
+      for (const f of decFriends) await db.put("friends", await encryptFriend(f));
+      for (const ev of decEvents) await db.put("events", await encryptEvent(ev));
+      setEncPanel(null);
+      resetEncForm();
+      setEncMsg("Passphrase updated ✓");
+      setTimeout(() => setEncMsg(null), 3000);
+    } catch (err) {
+      setEncMsg(err.message ?? "Failed to change passphrase.");
+    } finally {
+      setEncBusy(false);
+    }
+  };
+
+  const handleDisableEncryption = async (e) => {
+    e.preventDefault();
+    setEncBusy(true);
+    setEncMsg(null);
+    try {
+      const meta = await getEncMeta();
+      const ok = await unlockWithMeta(encPhrase, meta);
+      if (!ok) {
+        setEncMsg("Incorrect passphrase.");
+        setEncBusy(false);
+        return;
+      }
+      // Decrypt all records back to plaintext
+      const db = await (await import("../../lib/api/db.js")).getLocalDb();
+      const [allFriends, allEvents] = await Promise.all([
+        db.getAll("friends"),
+        db.getAll("events"),
+      ]);
+      const decFriends = await Promise.all(allFriends.map(decryptFriend));
+      const decEvents = await Promise.all(allEvents.map(decryptEvent));
+      lock();
+      await deleteEncMeta();
+      for (const f of decFriends) await db.put("friends", f);
+      for (const ev of decEvents) await db.put("events", ev);
+      setEncEnabled(false);
+      setEncPanel(null);
+      resetEncForm();
+      setEncMsg("Encryption disabled.");
+      setTimeout(() => setEncMsg(null), 3000);
+    } catch (err) {
+      setEncMsg(err.message ?? "Failed to disable encryption.");
+    } finally {
+      setEncBusy(false);
     }
   };
 
@@ -888,7 +1021,141 @@ export function FriendsTab({
               {backupMsg}
             </span>
           )}
+          {!capabilities.server && (
+            <>
+              <button
+                onClick={() => {
+                  resetEncForm();
+                  setEncPanel(encEnabled ? "change" : "enable");
+                }}
+                style={{
+                  padding: "5px 11px",
+                  borderRadius: 8,
+                  fontSize: 11,
+                  fontWeight: 600,
+                  background: encEnabled ? "#f0fdf4" : "#fef9c3",
+                  color: encEnabled ? "#15803d" : "#854d0e",
+                  border: `1px solid ${encEnabled ? "#bbf7d0" : "#fde68a"}`,
+                  cursor: "pointer",
+                }}
+                title={encEnabled ? "Change encryption passphrase" : "Enable data encryption"}
+              >
+                {encEnabled ? "🔒 Encrypted" : "🔓 Not encrypted"}
+              </button>
+              {encEnabled && (
+                <button
+                  onClick={() => {
+                    resetEncForm();
+                    setEncPanel("disable");
+                  }}
+                  style={{
+                    padding: "5px 11px",
+                    borderRadius: 8,
+                    fontSize: 11,
+                    fontWeight: 600,
+                    background: "#fff",
+                    color: "#6b7280",
+                    border: "1px solid #d1d5db",
+                    cursor: "pointer",
+                  }}
+                >
+                  Disable encryption
+                </button>
+              )}
+              {encMsg && (
+                <span
+                  style={{
+                    fontSize: 11,
+                    color: encMsg.includes("✓") ? "#15803d" : "#b91c1c",
+                  }}
+                >
+                  {encMsg}
+                </span>
+              )}
+            </>
+          )}
         </div>
+
+        {/* Encryption management panels */}
+        {encPanel === "enable" && (
+          <form
+            onSubmit={handleEnableEncryption}
+            style={{
+              marginBottom: 10,
+              padding: "12px 14px",
+              background: "#fef9c3",
+              borderRadius: 10,
+              border: "1px solid #fde68a",
+            }}
+          >
+            <div style={{ fontSize: 12, fontWeight: 700, color: "#854d0e", marginBottom: 8 }}>
+              Enable encryption
+            </div>
+            <div style={{ fontSize: 11, color: "#78350f", marginBottom: 10 }}>
+              ⚠️ If you forget your passphrase, data cannot be recovered.
+            </div>
+            <input
+              type="password"
+              placeholder="Passphrase"
+              value={encPhrase}
+              onChange={(e) => setEncPhrase(e.target.value)}
+              style={{ width: "100%", padding: "7px 10px", borderRadius: 8, border: "1.5px solid #d1d5db", fontSize: 13, marginBottom: 6, boxSizing: "border-box" }}
+            />
+            <input
+              type="password"
+              placeholder="Confirm passphrase"
+              value={encConfirm}
+              onChange={(e) => setEncConfirm(e.target.value)}
+              style={{ width: "100%", padding: "7px 10px", borderRadius: 8, border: "1.5px solid #d1d5db", fontSize: 13, marginBottom: 8, boxSizing: "border-box" }}
+            />
+            {encMsg && <div style={{ fontSize: 11, color: "#dc2626", marginBottom: 6 }}>{encMsg}</div>}
+            <div style={{ display: "flex", gap: 8 }}>
+              <button type="button" onClick={() => { setEncPanel(null); resetEncForm(); }} style={{ padding: "6px 12px", borderRadius: 8, border: "1px solid #d1d5db", background: "#fff", fontSize: 12, cursor: "pointer" }}>Cancel</button>
+              <button type="submit" disabled={encBusy || !encPhrase} style={{ padding: "6px 12px", borderRadius: 8, border: "none", background: "#2563eb", color: "#fff", fontSize: 12, fontWeight: 600, cursor: "pointer", opacity: encBusy || !encPhrase ? 0.6 : 1 }}>
+                {encBusy ? "Encrypting…" : "Enable"}
+              </button>
+            </div>
+          </form>
+        )}
+
+        {encPanel === "change" && (
+          <form
+            onSubmit={handleChangePassphrase}
+            style={{ marginBottom: 10, padding: "12px 14px", background: "#f0fdf4", borderRadius: 10, border: "1px solid #bbf7d0" }}
+          >
+            <div style={{ fontSize: 12, fontWeight: 700, color: "#166534", marginBottom: 8 }}>Change passphrase</div>
+            <input type="password" placeholder="New passphrase" value={encPhrase} onChange={(e) => setEncPhrase(e.target.value)}
+              style={{ width: "100%", padding: "7px 10px", borderRadius: 8, border: "1.5px solid #d1d5db", fontSize: 13, marginBottom: 6, boxSizing: "border-box" }} />
+            <input type="password" placeholder="Confirm new passphrase" value={encConfirm} onChange={(e) => setEncConfirm(e.target.value)}
+              style={{ width: "100%", padding: "7px 10px", borderRadius: 8, border: "1.5px solid #d1d5db", fontSize: 13, marginBottom: 8, boxSizing: "border-box" }} />
+            {encMsg && <div style={{ fontSize: 11, color: "#dc2626", marginBottom: 6 }}>{encMsg}</div>}
+            <div style={{ display: "flex", gap: 8 }}>
+              <button type="button" onClick={() => { setEncPanel(null); resetEncForm(); }} style={{ padding: "6px 12px", borderRadius: 8, border: "1px solid #d1d5db", background: "#fff", fontSize: 12, cursor: "pointer" }}>Cancel</button>
+              <button type="submit" disabled={encBusy || !encPhrase} style={{ padding: "6px 12px", borderRadius: 8, border: "none", background: "#15803d", color: "#fff", fontSize: 12, fontWeight: 600, cursor: "pointer", opacity: encBusy || !encPhrase ? 0.6 : 1 }}>
+                {encBusy ? "Updating…" : "Update passphrase"}
+              </button>
+            </div>
+          </form>
+        )}
+
+        {encPanel === "disable" && (
+          <form
+            onSubmit={handleDisableEncryption}
+            style={{ marginBottom: 10, padding: "12px 14px", background: "#fef2f2", borderRadius: 10, border: "1px solid #fecaca" }}
+          >
+            <div style={{ fontSize: 12, fontWeight: 700, color: "#991b1b", marginBottom: 8 }}>Disable encryption</div>
+            <div style={{ fontSize: 11, color: "#7f1d1d", marginBottom: 8 }}>Enter your current passphrase to confirm. Data will be stored unencrypted.</div>
+            <input type="password" placeholder="Current passphrase" value={encPhrase} onChange={(e) => setEncPhrase(e.target.value)}
+              style={{ width: "100%", padding: "7px 10px", borderRadius: 8, border: "1.5px solid #d1d5db", fontSize: 13, marginBottom: 8, boxSizing: "border-box" }} />
+            {encMsg && <div style={{ fontSize: 11, color: "#dc2626", marginBottom: 6 }}>{encMsg}</div>}
+            <div style={{ display: "flex", gap: 8 }}>
+              <button type="button" onClick={() => { setEncPanel(null); resetEncForm(); }} style={{ padding: "6px 12px", borderRadius: 8, border: "1px solid #d1d5db", background: "#fff", fontSize: 12, cursor: "pointer" }}>Cancel</button>
+              <button type="submit" disabled={encBusy || !encPhrase} style={{ padding: "6px 12px", borderRadius: 8, border: "none", background: "#dc2626", color: "#fff", fontSize: 12, fontWeight: 600, cursor: "pointer", opacity: encBusy || !encPhrase ? 0.6 : 1 }}>
+                {encBusy ? "Decrypting…" : "Disable"}
+              </button>
+            </div>
+          </form>
+        )}
         {(importing || calMsg) && (
           <div style={{ marginBottom: 8 }}>
             {importing && (
