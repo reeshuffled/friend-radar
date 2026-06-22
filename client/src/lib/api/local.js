@@ -8,6 +8,7 @@
  */
 import { getLocalDb, seedActivitiesIfEmpty, BUILTIN_ACTIVITIES } from "./db.js";
 import { isUnlocked, encryptFriend, decryptFriend, encryptEvent, decryptEvent } from "../crypto.js";
+import { seedDemoDataIfEmpty } from "../demo-data.js";
 
 export class NoServerError extends Error {
   constructor(feature) {
@@ -36,6 +37,7 @@ function advanceHangDate(current, candidate) {
 
 async function getFriends() {
   const db = await getLocalDb();
+  if (import.meta.env.VITE_DEMO) await seedDemoDataIfEmpty(db);
   const rows = await db.getAll("friends");
   if (!isUnlocked()) return rows;
   return Promise.all(rows.map(decryptFriend));

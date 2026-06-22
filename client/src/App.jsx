@@ -6,7 +6,7 @@ import { PlanTab } from "./components/planning/PlanTab.jsx";
 import { EventsTab } from "./components/events/EventsTab.jsx";
 import { FriendsTab } from "./components/friends/FriendsTab.jsx";
 import { FriendForm } from "./components/friends/FriendForm.jsx";
-import { getEncMeta } from "./lib/api/db.js";
+import { getEncMeta, getLocalDb } from "./lib/api/db.js";
 import { unlockWithMeta } from "./lib/crypto.js";
 import { EncryptionGate } from "./components/ui/EncryptionGate.jsx";
 
@@ -47,8 +47,11 @@ export default function App() {
       const meta = await getEncMeta();
       if (meta) {
         setEncState("unlock"); // encryption enabled, need passphrase
-      } else if (localStorage.getItem("fr:enc-declined")) {
-        setEncState("ready"); // user already declined
+      } else if (
+        localStorage.getItem("fr:enc-declined") ||
+        (import.meta.env.VITE_DEMO && !localStorage.getItem("fr:demo-dismissed"))
+      ) {
+        setEncState("ready"); // user already declined (or active demo mode — skip offer)
       } else {
         setEncState("offer"); // first-run offer
       }
@@ -279,7 +282,47 @@ export default function App() {
           <p style={{ fontSize: 12, color: "#9ca3af", margin: "2px 0 16px" }}>
             Able × Willing × Trusted
           </p>
-          {!capabilities.server && (
+          {import.meta.env.VITE_DEMO && !localStorage.getItem("fr:demo-dismissed") ? (
+            <div
+              style={{
+                marginBottom: 12,
+                padding: "8px 12px",
+                background: "#f0fdf4",
+                borderRadius: 10,
+                border: "1px solid #bbf7d0",
+                fontSize: 12,
+                color: "#166534",
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+              }}
+            >
+              <span>🎸 Demo mode — pre-loaded with Beatles data.</span>
+              <button
+                onClick={async () => {
+                  const db = await getLocalDb();
+                  await db.clear("friends");
+                  await db.clear("events");
+                  localStorage.setItem("fr:demo-dismissed", "1");
+                  window.location.reload();
+                }}
+                style={{
+                  background: "none",
+                  border: "none",
+                  padding: 0,
+                  color: "#166534",
+                  fontWeight: 600,
+                  cursor: "pointer",
+                  textDecoration: "underline",
+                  fontSize: 12,
+                  flexShrink: 0,
+                  marginLeft: 12,
+                }}
+              >
+                Exit demo mode
+              </button>
+            </div>
+          ) : !capabilities.server ? (
             <div
               style={{
                 marginBottom: 12,
@@ -294,7 +337,7 @@ export default function App() {
               📦 Local mode — data is stored in this browser only and will be lost if you clear
               storage. Use <strong>Export backup</strong> regularly.
             </div>
-          )}
+          ) : null}
           {error && (
             <div
               style={{
